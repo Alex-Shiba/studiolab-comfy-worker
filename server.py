@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
+import io
 import os
 from pathlib import Path
 import shutil
@@ -69,7 +70,7 @@ class JobManager:
             self.jobs[benchmark_id] = Job(benchmark_id, self.root / benchmark_id, state="failed",
                                           error="readiness probe", finished_at=self.clock())
 
-    def submit(self, clip):
+    def lookup(self, clip):
         self.expire()
         fingerprint = clip.fingerprint()
         if clip.request in self.requests:
@@ -77,7 +78,17 @@ class JobManager:
             if previous != fingerprint:
                 raise web.HTTPConflict(text='{"error":"conflict"}', content_type="application/json")
             return self.jobs[job_id]
-        if self.active >= 3 or self.retirement.retiring or not self.backend.healthy:
+        return None
+
+    def available(self):
+        return self.active < 3 and not self.retirement.retiring and self.backend.healthy
+
+    def submit(self, clip, frames):
+        # No await between this second lookup, capacity check and registration.
+        existing = self.lookup(clip)
+        if existing is not None:
+            return existing
+        if not self.available():
             return None
         job_id = uuid.uuid4().hex
         directory = self.root / job_id
@@ -86,18 +97,16 @@ class JobManager:
         job = Job(job_id, directory, width=width, height=height, frames=clip.frames, request=clip.request)
         try:
             names = {}
-            for key in ("first", "last"):
-                image = getattr(clip, key)
-                if image:
-                    name = uuid.uuid4().hex + ".png"
-                    save_frame(image, directory / name, clip.dimensions)
-                    names[key] = job_id + "/" + name
+            for key, data in frames.items():
+                name = uuid.uuid4().hex + ".png"
+                (directory / name).write_bytes(data)
+                names[key] = job_id + "/" + name
             graph = build_graph(clip, job_id, **names)
         except BaseException:
             shutil.rmtree(directory)
             raise
         self.jobs[job_id] = job
-        self.requests[clip.request] = (fingerprint, job_id)
+        self.requests[clip.request] = (clip.fingerprint(), job_id)
         self.active += 1
         self.retirement.job_started()
         self.queue.put_nowait((job, graph))
@@ -199,10 +208,23 @@ def make_app(manager):
     # Bound CPU image decoding independently of the generation queue.
     decode_slots = asyncio.Semaphore(2)
 
+    def crop_frames(clip):
+        frames = {}
+        for key in ("first", "last"):
+            image = getattr(clip, key)
+            if image is not None:
+                output = io.BytesIO()
+                save_frame(image, output, clip.dimensions)
+                frames[key] = output.getvalue()
+        return frames
+
     async def start(request):
         async with decode_slots:
             clip = await asyncio.to_thread(validate_start, await payload(request))
-        job = manager.submit(clip)
+            job = manager.lookup(clip)
+            if job is None and manager.available():
+                frames = await asyncio.to_thread(crop_frames, clip)
+                job = manager.submit(clip, frames)
         if job is None:
             return web.json_response({"error": "busy"}, status=429)
         return web.json_response({"id": job.id, "state": job.state})

@@ -87,7 +87,11 @@ class ClipRequest:
 
 def save_frame(image, path, dimensions):
     with Image.open(io.BytesIO(image.data)) as source:
-        oriented = ImageOps.exif_transpose(source).convert("RGB")
+        oriented = ImageOps.exif_transpose(source)
+        # PNG grayscale uses unsigned 16-bit samples; RGB conversion alone clips at 255.
+        if oriented.mode.startswith("I"):
+            oriented = oriented.convert("I").point(lambda value: value / 257).convert("L")
+        oriented = oriented.convert("RGB")
         canvas = ImageOps.fit(oriented, dimensions, method=Image.Resampling.LANCZOS,
                               centering=(0.5, 0.5))
         canvas.save(path, format="PNG")

@@ -23,7 +23,9 @@ def test_sdk_routes_costs_and_benchmark_configuration():
     assert config.model_server_url == "http://127.0.0.1" and config.model_server_port == 18001
     assert config.model_healthcheck_url == "/health"
     assert config.log_action_config.on_load == ["COMFY_READY"]
-    assert config.log_action_config.on_error == ["COMFY_FATAL"]
+    assert config.log_action_config.on_error == [
+        "COMFY_FATAL install", "COMFY_FATAL download", "COMFY_FATAL comfy",
+        "COMFY_FATAL server", "COMFY_FATAL proxy", "COMFY_FATAL"]
     assert [h.route for h in config.handlers] == ["/clip/start", "/clip/state", "/clip/file"]
     assert [h.workload_calculator({}) for h in config.handlers] == [100, 1, 1]
     assert all(h.allow_parallel_requests for h in config.handlers)

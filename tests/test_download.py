@@ -62,9 +62,17 @@ def test_bad_download_is_never_installed(tmp_path, bad):
         return Response(body, 0, 3, 4, status=200 if bad == "range" else 206)
 
     path = tmp_path / "model"
+    sleeps = []
+    def deadline(delay):
+        from worker import BootTimeout
+        sleeps.append(delay)
+        if len(sleeps) == 8:
+            raise BootTimeout("test watchdog")
     with pytest.raises(RuntimeError):
-        download_file("https://example.invalid/model", path, 4, hashlib.sha256(data).hexdigest(), connections=1, opener=opener)
+        download_file("https://example.invalid/model", path, 4, hashlib.sha256(data).hexdigest(),
+                      connections=1, opener=opener, sleep=deadline)
     assert not path.exists() and not list(tmp_path.glob("*.range-*"))
+    assert len(sleeps) == (0 if bad == "checksum" else 8)
 
 
 def test_partial_network_failure_resumes(tmp_path):

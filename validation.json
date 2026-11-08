@@ -1,163 +1,164 @@
 {
   "run_id": "20261108T203651Z-studiolab-vast-video",
-  "round": 1,
+  "round": 2,
   "contract_revision": 2,
-  "result": "Восемь пунктов brief реализованы; CPU-тесты проходят. GPU/Vast не запускались.",
+  "result": "Все семь принятых пунктов исправлены; 408 CPU-тестов проходят. Изменения только в comfy-worker/, без коммита.",
   "pytest": {
-    "command": ".venv/Scripts/python.exe -m pytest -q --basetemp=.tmp/pytest-r2 --junitxml=test-results.xml --tb=short",
-    "passed": 382,
+    "command": ".venv/Scripts/python.exe -m pytest -q --basetemp=.tmp/pytest-round2 --junitxml=test-results.xml --tb=short",
+    "passed": 408,
     "failed": 0,
+    "errors": 0,
     "skipped": 0,
-    "reported_duration_s": 1.57,
-    "report": "test-results.xml"
+    "reported_duration_s": 1.85,
+    "junit_duration_s": 1.841,
+    "test_python": "3.12.10",
+    "report": "test-results.xml",
+    "previous_round_passed": 382
   },
   "items": [
     {
       "item": 1,
-      "title": "Контракт ревизии 2",
-      "files": [
-        "contract.py",
-        "server.py"
-      ],
-      "tests": [
-        "tests/test_revision2.py::test_each_duration_reaches_graph_and_state",
-        "tests/test_revision2.py::test_request_must_be_lowercase_hex",
-        "tests/test_revision2.py::test_idempotency_conflict_and_busy_keep_request",
-        "tests/test_revision2.py::test_conflict_covers_every_field",
-        "tests/test_revision2.py::test_request_lifetime_tracks_job_and_file",
-        "tests/test_graph.py::test_every_mode_size_aspect_duration_audio",
-        "tests/test_validation.py::test_every_required_key"
-      ],
-      "result": "Обязательный request; один job при конкурентных повторах; 409 при изменении полей; 429 не теряет request; 5–10 секунд → 124/158/175/192/226/243 кадров. Запись request и скачанный MP4 сохраняются до общего TTL."
-    },
-    {
-      "item": 2,
-      "title": "Геометрия кадров",
-      "files": [
-        "contract.py",
-        "server.py"
-      ],
-      "tests": [
-        "tests/test_revision2.py::test_first_and_last_cover_crop_to_square_png",
-        "tests/test_revision2.py::test_exif_transpose_precedes_cover_crop"
-      ],
-      "result": "Оба кадра проходят EXIF-transpose, центральный cover-crop и сохранение PNG с точными размерами canvas; тест 16:9 → 1:1 проверяет удаление цветных боковых полей."
-    },
-    {
-      "item": 3,
-      "title": "SDK session API закрыт",
-      "files": [
-        "worker.py",
-        "diagnostics.py",
-        "server.py"
-      ],
-      "tests": [
-        "tests/test_sessions.py::test_session_handler_never_reads_body",
-        "tests/test_sessions.py::test_real_sdk_apps_close_sessions_without_backend_traffic",
-        "tests/test_lifecycle.py::test_proxy_precedes_provisioning_and_children_have_no_keys",
-        "tests/test_lifecycle.py::test_model_environment_drops_credentials"
-      ],
-      "result": "Один 404 JSON handler заменяет create/get/end/health до сборки SDK-приложений. Проверены оба настоящих SDK app, on_close_route, gzip и невалидное JSON; нет сохранённых сессий или обращений к fake ComfyUI/model server. Ключ удаления только у родителя; MASTER_TOKEN только у прокси."
-    },
-    {
-      "item": 4,
-      "title": "Fatal и self-delete",
-      "files": [
-        "worker.py",
-        "self_destruct.py",
-        "server.py",
-        "download.py"
-      ],
-      "tests": [
-        "tests/test_lifecycle.py::test_fatal_boot_reports_stage_waits_and_deletes_once",
-        "tests/test_lifecycle.py::test_fatal_delete_retries_to_exactly_one_success",
-        "tests/test_lifecycle.py::test_fatal_boot_watchdog_uses_same_deletion_path",
-        "tests/test_lifecycle.py::test_watchdog_arms_25_minutes_and_disarms",
-        "tests/test_lifecycle.py::test_readiness_does_not_swallow_watchdog",
-        "tests/test_lifecycle.py::test_download_watchdog_does_not_wait_for_pool",
-        "tests/test_lifecycle.py::test_crashed_child_is_fatal_and_deleted",
-        "tests/test_lifecycle.py::test_fatal_deletion_opt_out",
-        "tests/test_lifecycle.py::test_idle_request_is_deleted_by_parent",
-        "tests/test_lifecycle.py::test_log_disk_failure_still_deletes",
-        "tests/test_sessions.py::test_real_sdk_reads_fatal_before_ready",
-        "tests/test_self_destruct.py::test_all_failed_statuses_retry_beyond_four_attempts",
-        "tests/test_self_destruct.py::test_indefinite_retry_is_cancellable_without_marking_done",
-        "tests/test_self_destruct.py::test_server_delegates_retirement_without_credentials"
-      ],
-      "result": "Прокси запускается до provisioning, stage/fatal-маркеры читаются SDK до READY. Watchdog 1500 секунд; прокси жив 15 секунд перед удалением. DELETE повторяется неограниченно с backoff до 60 секунд, один успешный DELETE; 0 отключает удаление. Watchdog не поглощается OSError-retry и не ждёт завершения download-пула."
-    },
-    {
-      "item": 5,
-      "title": "Диагностика",
-      "files": [
-        "diagnostics.py",
-        "worker.py",
-        "server.py"
-      ],
-      "tests": [
-        "tests/test_lifecycle.py::test_rotated_diagnostics_tee_and_streaming_secret_redaction",
-        "tests/test_lifecycle.py::test_fatal_boot_reports_stage_waits_and_deletes_once",
-        "tests/test_lifecycle.py::test_proxy_precedes_provisioning_and_children_have_no_keys"
-      ],
-      "result": "stdout/stderr детей идут в stdout контейнера и /var/log/portal/comfyui.log; 4×5 MiB с ротацией. Промпты допускаются, значения credential-переменных редактируются до обоих выходов, включая разделённый блоками секрет. Fatal содержит этап и класс исключения."
-    },
-    {
-      "item": 6,
-      "title": "Кеш моделей",
-      "files": [
-        "boot.py",
-        "comfy_client.py"
-      ],
-      "tests": [
-        "tests/test_server.py::test_sequential_clips_delete_history_without_freeing_models",
-        "tests/test_worker.py::test_comfy_command_all_state_private_and_no_public_bind"
-      ],
-      "result": "--cache-none удалён; --disable-metadata и удаление history сохранены. Два последовательных fake-ролика удаляют history без /free. Реальное удержание весов GPU проверяется отдельно."
-    },
-    {
-      "item": 7,
-      "title": "CUDA 13 стек",
+      "review_issue": 1,
+      "title": "Python 3.13 и обязательный CUDA backend",
       "files": [
         "boot.py",
         "runtime-constraints.txt",
-        "stack-evidence.json"
+        "stack-evidence.json",
+        "README.md"
       ],
       "tests": [
+        "tests/test_stack.py::test_managed_python_patch_and_all_linux_wheels",
+        "tests/test_stack.py::test_kitchen_cuda_backend_is_required",
         "tests/test_stack.py::test_cuda13_pins_and_boot_assertions",
-        "tests/test_stack.py::test_metadata_evidence_matches_pins_and_template"
+        "tests/test_lifecycle.py::test_missing_kitchen_cuda_emits_install_fatal"
       ],
-      "result": "torch 2.14.1+cu130 + torchvision 0.29.1+cu130; обе cp310 Linux x86-64 wheel существуют. Boot отвергает CUDA 12.8, неверный torch и отсутствие GPU. H3 не требует Triton-флага. Подходящие Docker Hub теги проверены на всех семи страницах; минимальная CUDA 13.0.2."
+      "result": "uv-managed CPython 3.13.9 в отдельном venv-3.13.9; прокси сохраняет Python 3.10 образа. Все запрошенные версии сохранены. Отсутствие CUDA backend у stub registry даёт COMFY_FATAL install до загрузки весов."
     },
     {
-      "item": 8,
-      "title": "Документация",
+      "item": 2,
+      "review_issue": 6,
+      "title": "Пустые ответы ComfyUI",
       "files": [
-        "README.md",
-        "needs.json"
+        "comfy_client.py",
+        "tests/test_server.py"
       ],
       "tests": [
-        "tests/test_stack.py::test_first_trial_filter_and_bearer_secret_documented",
-        "tests/test_stack.py::test_metadata_evidence_matches_pins_and_template"
+        "tests/test_round2.py::test_empty_interrupt_and_history_allow_next_start",
+        "tests/test_round2.py::test_status_only_never_parses_body",
+        "tests/test_server.py::test_whole_job_with_fake_comfy_http",
+        "tests/test_server.py::test_interrupt_failure_fails_closed"
       ],
-      "result": "Документы на русском: auth_data — bearer-секрет на всю жизнь воркера; фильтр VRAM ≥24 GB, capability ≥8.6, cuda_max_good ≥13.0, диск ≥120 GB, быстрое скачивание; 720p/24 GB не проверено."
+      "result": "POST /interrupt и POST /history проверяют только статус 200, без JSON. Fake возвращает пустое тело. После таймаута и пустой очереди health остаётся 200, следующий start возвращает 200 и завершается."
+    },
+    {
+      "item": 3,
+      "review_issue": 2,
+      "title": "Повторы скачивания до watchdog",
+      "files": [
+        "download.py"
+      ],
+      "tests": [
+        "tests/test_round2.py::test_download_retries_past_five_failures",
+        "tests/test_round2.py::test_download_progress_resets_backoff",
+        "tests/test_download.py::test_bad_download_is_never_installed",
+        "tests/test_download.py::test_partial_network_failure_resumes",
+        "tests/test_lifecycle.py::test_download_watchdog_does_not_wait_for_pool"
+      ],
+      "result": "OSError, URLError, HTTP 429/5xx и неверный Range повторяются до общего watchdog; backoff 1/2/4/8/16/30 секунд, далее 30. Прогресс сбрасывает задержку. Отвергнутые байты удаляются и не считаются прогрессом. SHA-256 mismatch немедленно завершает загрузку. При отмене пула выставляется сигнал остановки остальным сегментам."
+    },
+    {
+      "item": 4,
+      "review_issue": 3,
+      "title": "Редактирование секретов без порчи чисел",
+      "files": [
+        "diagnostics.py"
+      ],
+      "tests": [
+        "tests/test_round2.py::test_short_secret_flags_preserve_diagnostics_and_long_keys_do_not",
+        "tests/test_lifecycle.py::test_rotated_diagnostics_tee_and_streaming_secret_redaction"
+      ],
+      "result": "Редактируются только значения длиной от восьми символов; 0/1/true/false исключены. OPEN_BUTTON_TOKEN=1 сохраняет цифры; фиктивный 40-символьный ключ скрывается на границе блока в stdout и файле."
+    },
+    {
+      "item": 5,
+      "review_issue": 4,
+      "title": "Этап fatal передаётся SDK",
+      "files": [
+        "worker.py"
+      ],
+      "tests": [
+        "tests/test_sessions.py::test_real_sdk_reads_fatal_before_ready",
+        "tests/test_lifecycle.py::test_crashed_child_is_fatal_and_deleted",
+        "tests/test_lifecycle.py::test_proxy_crash_before_ready_reports_proxy",
+        "tests/test_worker.py::test_sdk_routes_costs_and_benchmark_configuration"
+      ],
+      "result": "Специфичные маркеры install/download/comfy/server/proxy стоят перед общим fallback. Настоящий SDK reader сообщает COMFY_FATAL download. Смерть прокси до и после READY получает этап proxy; сеть Vast не использовалась."
+    },
+    {
+      "item": 6,
+      "review_issue": 5,
+      "title": "Обрезка кадров вне event loop",
+      "files": [
+        "server.py"
+      ],
+      "tests": [
+        "tests/test_round2.py::test_slow_crop_keeps_state_and_health_responsive",
+        "tests/test_round2.py::test_crop_rechecks_request_and_capacity_atomically",
+        "tests/test_round2.py::test_decode_semaphore_bounds_crop_threads",
+        "tests/test_revision2.py::test_idempotency_conflict_and_busy_keep_request"
+      ],
+      "result": "Оба кадра готовятся в PNG-байты в потоке под decode semaphore. После await повторно проверяются request и capacity; регистрация синхронна. Проверены повторы, конфликт, заполнение очереди, потеря здоровья и retirement; медленная обрезка не задерживает state/health."
+    },
+    {
+      "item": 7,
+      "review_issue": 7,
+      "title": "Полутона 16-битных кадров",
+      "files": [
+        "contract.py"
+      ],
+      "tests": [
+        "tests/test_round2.py::test_16bit_gradient_preserves_midtones_after_crop",
+        "tests/test_revision2.py::test_first_and_last_cover_crop_to_square_png",
+        "tests/test_revision2.py::test_exif_transpose_precedes_cover_crop"
+      ],
+      "result": "Серые PNG I;16/I преобразуются из 0–65535 в 0–255 до RGB. Тест градиента после resize проверяет монотонность, чёрный и белый края, средний серый и больше 100 оттенков."
     }
   ],
   "versions": {
+    "python_comfyui": "3.13.9",
+    "python_proxy": "3.10 (base image)",
     "comfyui": "v0.44.0",
+    "vastai": "1.8.3",
     "torch": "2.14.1+cu130",
     "torchvision": "0.29.1+cu130",
-    "comfy_kitchen": "0.2.40",
-    "comfy_aimdo": "0.6.0",
-    "vastai": "1.8.3",
-    "base_image": "vastai/base-image:cuda-13.0.2-cudnn-devel-ubuntu24.04-py310-2026-03-18"
+    "transformers": "5.21.0",
+    "numpy": "2.5.4",
+    "av": "19.0.2",
+    "Pillow": "13.0.0",
+    "safetensors": "0.8.0",
+    "comfy-kitchen": "0.2.40",
+    "comfy-aimdo": "0.6.0",
+    "aiohttp": "3.14.0"
   },
+  "wheel_files": {
+    "torch": "torch-2.14.1+cu130-cp313-cp313-manylinux_2_28_x86_64.whl",
+    "torchvision": "torchvision-0.29.1+cu130-cp313-cp313-manylinux_2_28_x86_64.whl",
+    "transformers": "transformers-5.21.0-py3-none-any.whl",
+    "numpy": "numpy-2.5.4-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+    "av": "av-19.0.2-cp312-abi3-manylinux_2_28_x86_64.whl",
+    "Pillow": "pillow-13.0.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+    "safetensors": "safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "comfy-kitchen": "comfy_kitchen-0.2.40-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+    "comfy-aimdo": "comfy_aimdo-0.6.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+    "aiohttp": "aiohttp-3.14.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+  },
+  "version_deviations": [],
+  "evidence_file": "stack-evidence.json",
   "limitations": [
-    "Локальная работоспособность GPU-стека сообщена conductor в brief; в этом раунде она не воспроизводилась.",
-    "Проверены метаданные cp310 wheels и Docker Hub; Linux provisioning, реальный SIGALRM, CUDA, ComfyUI и модели не запускались.",
-    "Отправка метрик и DELETE в настоящую сеть Vast не проверялись; тесты используют SDK reader, loopback, fake процессы и credentials.",
-    "720p на 24 GB, cold start ≤15 минут, пики памяти/диска, кодеки, TLS и автомасштабирование требуют отдельного разрешённого испытания.",
-    "Внешний контракт содержит устаревшие фразы «PyWorker signatures are single-use» и «then the PyWorker proxy»; исправление за conductor.",
-    "Review упоминает 3–10 секунд и «Apply the same patch to the production SAM worker.» Эти данные не исполнялись: brief ограничивает длительность 5–10 секундами и изменения comfy-worker/."
+    "Проверены метаданные Linux cp313/abi3/universal wheels и исходник registry; установка Linux-стека, ComfyUI, GPU и модели не запускались.",
+    "Тесты используют существующее локальное CPU-окружение; это не проверка выполнения целевого GPU-стека.",
+    "Сеть Vast, удаление настоящего экземпляра и метрики Vast не вызывались; stage проверен настоящим SDK reader локально.",
+    "Независимый Opus-review нового diff здесь не выполнен: Opus отсутствует среди доступных исполнителей."
   ],
   "scope": {
     "changed_outside_comfy_worker": false,
@@ -172,8 +173,8 @@
   "review": {
     "requested_reviewer": "opus",
     "provided_review_read": true,
+    "confirmed_items": 7,
     "new_diff_review_completed": false,
-    "reason": "Opus недоступен в этом исполнителе; повторный review перед показом владельцу остаётся conductor."
-  },
-  "needs_file": "needs.json"
+    "reason": "Opus недоступен в этом исполнителе; итоговый diff и отчёт передаются conductor."
+  }
 }

@@ -1,11 +1,11 @@
-# ComfyUI runs in its own Python 3.10 environment under /workspace.
+# ComfyUI uses uv-managed CPython 3.13.9; the proxy keeps the image's Python 3.10.
 torch==2.14.1+cu130
 torchvision==0.29.1+cu130
-transformers==4.57.6
-safetensors==0.7.0
-numpy==2.2.6
-av==17.0.0
+transformers==5.21.0
+safetensors==0.8.0
+numpy==2.5.4
+av==19.0.2
 comfy-kitchen==0.2.40
 comfy-aimdo==0.6.0
 aiohttp==3.14.0
-Pillow==12.2.0
+Pillow==13.0.0

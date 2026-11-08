@@ -37,7 +37,9 @@ def build_config(benchmark_id=None):
             HandlerConfig(route="/clip/file", allow_parallel_requests=True, max_queue_time=30,
                           workload_calculator=lambda payload: 1.0),
         ],
-        log_action_config=LogActionConfig(on_load=["COMFY_READY"], on_error=["COMFY_FATAL"]),
+        log_action_config=LogActionConfig(on_load=["COMFY_READY"], on_error=[
+            "COMFY_FATAL install", "COMFY_FATAL download", "COMFY_FATAL comfy",
+            "COMFY_FATAL server", "COMFY_FATAL proxy", "COMFY_FATAL"]),
     )
 
 
@@ -143,6 +145,7 @@ def main():
         benchmark = uuid.uuid4().hex
         proxy_env = {**os.environ, "COMFY_BENCHMARK_ID": benchmark, "PYTHONUNBUFFERED": "1"}
         proxy_env.pop("CONTAINER_API_KEY", None)
+        stage("proxy")
         launch([sys.executable, str(Path(__file__)), "--proxy"], proxy_env)
         stage("install")
         source, python, runtime = prepare(stage=stage)
@@ -161,7 +164,7 @@ def main():
         while True:
             for child in children:
                 if child.poll() is not None:
-                    current_stage = "comfy" if child is comfy else "server"
+                    current_stage = "proxy" if child is children[0] else "comfy" if child is comfy else "server"
                     raise ChildProcessError("child exited")
             if retire_file.exists():
                 asyncio.run(retire(log_marker, reason="idle"))
@@ -169,6 +172,8 @@ def main():
             time.sleep(1)
     except Exception as error:
         watchdog.cancel()
+        if children and children[0].poll() is not None:
+            current_stage = "proxy"
         log_marker(f"COMFY_FATAL {current_stage} {type(error).__name__}")
         # Stop generation, but leave the proxy alive through its 10 s metrics cadence.
         stop_children(children[1:])

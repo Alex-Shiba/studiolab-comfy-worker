@@ -15,6 +15,7 @@ from graph import REQUIRED_NODES
 from diagnostics import model_environment
 
 WORKSPACE = Path("/workspace")
+COMFY_PYTHON = "3.13.9"
 
 
 def command(argv, **kwargs):
@@ -43,10 +44,12 @@ def prepare(stage=lambda name: None):
     uv = shutil.which("uv")
     if uv is None:
         raise RuntimeError("base image must provide uv")
-    environment = root / "venv"
+    # A versioned path cannot accidentally reuse the previous Python 3.10 venv.
+    environment = root / ("venv-" + COMFY_PYTHON)
     python = environment / "bin/python"
     if not python.exists():
-        command([uv, "venv", "--python", sys.executable, environment])
+        command([uv, "venv", "--managed-python", "--python", COMFY_PYTHON, environment])
+    command([python, "-c", "import sys; assert sys.version_info[:3] == (3, 13, 9)"])
     command([uv, "pip", "install", "--python", python,
              "--index-url", "https://download.pytorch.org/whl/cu130",
              "torch==2.14.1+cu130", "torchvision==0.29.1+cu130"])
@@ -55,7 +58,8 @@ def prepare(stage=lambda name: None):
     # Fail instead of starting an accidental CPU model server.
     command([python, "-c", "import torch; import comfy_kitchen; "
              "assert torch.__version__ == '2.14.1+cu130'; "
-             "assert torch.version.cuda == '13.0'; assert torch.cuda.is_available()"])
+             "assert torch.version.cuda == '13.0'; assert torch.cuda.is_available(); "
+             "assert comfy_kitchen.registry.is_available('cuda')"])
     stage("download")
     download_models(source / "models")
     private = root / "private"

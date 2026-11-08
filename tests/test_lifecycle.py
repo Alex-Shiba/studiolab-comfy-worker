@@ -172,8 +172,50 @@ def test_crashed_child_is_fatal_and_deleted(harness, monkeypatch, child):
     monkeypatch.setattr(worker.time, "sleep", sleep)
     with pytest.raises(SystemExit):
         worker.main()
-    stage = "comfy" if child == "comfy" else "server"
-    assert f"COMFY_FATAL {stage} ChildProcessError" in log.read_text()
+    assert f"COMFY_FATAL {child} ChildProcessError" in log.read_text()
+    delete.assert_awaited_once()
+
+
+def test_proxy_crash_before_ready_reports_proxy(harness, monkeypatch):
+    _, children, _, log, _, delete = harness
+    def fail(*args, **kwargs):
+        children[0].stopped = True
+        raise ChildProcessError("child exited before ready")
+    monkeypatch.setattr(worker, "wait_ready", fail)
+    monkeypatch.setattr(worker.time, "sleep", lambda seconds: None)
+    with pytest.raises(SystemExit):
+        worker.main()
+    assert "COMFY_FATAL proxy ChildProcessError" in log.read_text()
+    delete.assert_awaited_once()
+
+
+def test_missing_kitchen_cuda_emits_install_fatal(harness, monkeypatch, tmp_path):
+    import sys
+    from types import SimpleNamespace
+    _, _, _, log, _, delete = harness
+    monkeypatch.setattr(boot, "WORKSPACE", tmp_path)
+    monkeypatch.setattr(boot.sys, "platform", "linux")
+    monkeypatch.setattr(boot.shutil, "which", lambda name: "uv")
+    monkeypatch.setitem(sys.modules, "torch", SimpleNamespace(
+        __version__="2.14.1+cu130", version=SimpleNamespace(cuda="13.0"),
+        cuda=SimpleNamespace(is_available=lambda: True)))
+    checked = []
+    def unavailable(name):
+        checked.append(name)
+        return False
+    monkeypatch.setitem(sys.modules, "comfy_kitchen", SimpleNamespace(
+        registry=SimpleNamespace(is_available=unavailable)))
+    def command(args):
+        if "-c" in args and "import torch" in str(args[-1]):
+            exec(args[-1])
+        return boot.manifest()["comfyui"]["commit"] if "rev-parse" in args else ""
+    monkeypatch.setattr(boot, "command", command)
+    monkeypatch.setattr(boot, "download_models", lambda *a: pytest.fail("download after failed CUDA check"))
+    monkeypatch.setattr(worker, "prepare", boot.prepare)
+    with pytest.raises(SystemExit):
+        worker.main()
+    assert checked == ["cuda"]
+    assert "COMFY_FATAL install AssertionError" in log.read_text()
     delete.assert_awaited_once()
 
 

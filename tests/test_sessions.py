@@ -10,7 +10,7 @@ from vastai.serverless.server.lib import server as sdk_server
 from vastai.serverless.server.lib.data_types import LogAction
 
 from conftest import connector, payload
-from worker import close_sessions, unknown_session
+from worker import build_config, close_sessions, unknown_session
 
 
 async def test_real_sdk_reads_fatal_before_ready(tmp_path, monkeypatch):
@@ -20,8 +20,10 @@ async def test_real_sdk_reads_fatal_before_ready(tmp_path, monkeypatch):
         monkeypatch.setenv(name, value)
     log = tmp_path / "worker.log"
     log.write_text("COMFY_STAGE download\nCOMFY_FATAL download OSError\n")
+    config = build_config("a" * 32).log_action_config
     backend = Backend("http://127.0.0.1", str(log), None,
-                      [(LogAction.ModelLoaded, "COMFY_READY"), (LogAction.ModelError, "COMFY_FATAL")])
+                      [(LogAction.ModelLoaded, marker) for marker in config.on_load] +
+                      [(LogAction.ModelError, marker) for marker in config.on_error])
     reported = asyncio.Event()
     messages = []
     def errored(message):
@@ -31,7 +33,7 @@ async def test_real_sdk_reads_fatal_before_ready(tmp_path, monkeypatch):
     task = asyncio.create_task(backend._Backend__read_logs())
     try:
         await asyncio.wait_for(reported.wait(), timeout=3)
-        assert messages == ["COMFY_FATAL"]
+        assert messages == ["COMFY_FATAL download"]
     finally:
         task.cancel()
         with suppress(asyncio.CancelledError):

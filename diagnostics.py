@@ -19,7 +19,8 @@ def model_environment(env):
 
 class Redactor:
     def __init__(self, secrets):
-        self.secrets = sorted({s for s in secrets if s}, key=len, reverse=True)
+        self.secrets = sorted({s for s in secrets if len(s) >= 8 and s.lower() not in
+                               {"0", "1", "true", "false"}}, key=len, reverse=True)
         self.keep = max(map(len, self.secrets), default=1)
         self.pending = ""
 

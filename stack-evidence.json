@@ -1,13 +1,16 @@
 {
-  "checked_at": "2026-11-08T21:33:22.150516+00:00",
-  "network": "Metadata and source only; no weights or wheels downloaded.",
+  "checked_at": "2026-11-08T22:01:44.337301+00:00",
+  "network": "Package indexes, metadata and GitHub source only; no weights, wheels or interpreter archives downloaded.",
   "wheels": {
     "torch": {
       "index": "https://download.pytorch.org/whl/cu130/torch/",
-      "wheel": "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl#sha256=524039bee1fdb7e96f943768335ba964a8ad2a7d5e41525da6dc4897ae27ed16",
-      "metadata_url": "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl.metadata",
+      "wheel": "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl#sha256=3a78ea0a4d6605c1e351b33ab8aabe44ddb815239cec00cc6f85555d26c0a5a5",
+      "filename": "torch-2.14.1+cu130-cp313-cp313-manylinux_2_28_x86_64.whl",
+      "sha256": "3a78ea0a4d6605c1e351b33ab8aabe44ddb815239cec00cc6f85555d26c0a5a5",
+      "metadata_url": "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl.metadata",
       "version": "2.14.1+cu130",
-      "python": "cp310",
+      "python": "cp313",
+      "abi": "cp313",
       "platform": "manylinux_2_28_x86_64",
       "requirements": [
         "Requires-Python: >=3.10"
@@ -15,14 +18,129 @@
     },
     "torchvision": {
       "index": "https://download.pytorch.org/whl/cu130/torchvision/",
-      "wheel": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.29.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl#sha256=30ffe13c205f1b3554dc0c527cbcbd37ef6e09eee4a45b5ba0bbe3336efdda01",
-      "metadata_url": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.29.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl.metadata",
+      "wheel": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.29.1%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl#sha256=47f000acb2449b281d43707c90116a30c7fa002c7f7bbf6976bcc2562dd5787b",
+      "filename": "torchvision-0.29.1+cu130-cp313-cp313-manylinux_2_28_x86_64.whl",
+      "sha256": "47f000acb2449b281d43707c90116a30c7fa002c7f7bbf6976bcc2562dd5787b",
+      "metadata_url": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.29.1%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl.metadata",
       "version": "0.29.1+cu130",
-      "python": "cp310",
+      "python": "cp313",
+      "abi": "cp313",
       "platform": "manylinux_2_28_x86_64",
       "requirements": [
         "Requires-Python: >=3.10,!=3.14.1",
         "Requires-Dist: torch (>=2.14.0)"
+      ]
+    },
+    "transformers": {
+      "index": "https://pypi.org/pypi/transformers/5.21.0/json",
+      "wheel": "https://files.pythonhosted.org/packages/73/fa/fb638d54bffff44700c8d487608c1f2872823e606fbd043b3c29c93236cf/transformers-5.21.0-py3-none-any.whl",
+      "filename": "transformers-5.21.0-py3-none-any.whl",
+      "sha256": "8803a8712932aa3441c1e8bb340e66d5e3eca079fe65d9b717ede2f3ead01c79",
+      "metadata_url": "https://pypi.org/pypi/transformers/5.21.0/json",
+      "version": "5.21.0",
+      "python": "py3",
+      "abi": "none",
+      "platform": "any",
+      "requirements": [
+        "Requires-Python: >=3.11.0"
+      ]
+    },
+    "numpy": {
+      "index": "https://pypi.org/pypi/numpy/2.5.4/json",
+      "wheel": "https://files.pythonhosted.org/packages/da/24/3bd070f3269dc609d8f26b2643f62ef91bb415841c0b294805aaf7fe06da/numpy-2.5.4-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "filename": "numpy-2.5.4-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "6ffa07666f8da0eef81d149934a626d0d95fbd6838432a33e66245423a9062c0",
+      "metadata_url": "https://pypi.org/pypi/numpy/2.5.4/json",
+      "version": "2.5.4",
+      "python": "cp313",
+      "abi": "cp313",
+      "platform": "manylinux_2_27_x86_64.manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.12"
+      ]
+    },
+    "av": {
+      "index": "https://pypi.org/pypi/av/19.0.2/json",
+      "wheel": "https://files.pythonhosted.org/packages/e1/7f/9f1237feb894afa472ef834aa1fbfe4d6398f28dc7e86a1b418650204c36/av-19.0.2-cp312-abi3-manylinux_2_28_x86_64.whl",
+      "filename": "av-19.0.2-cp312-abi3-manylinux_2_28_x86_64.whl",
+      "sha256": "9c1da7aad0fa6c13b4a5c1e7985be0d13f8526a96284573acaf3d55ead6d3fe8",
+      "metadata_url": "https://pypi.org/pypi/av/19.0.2/json",
+      "version": "19.0.2",
+      "python": "cp312",
+      "abi": "abi3",
+      "platform": "manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.12"
+      ]
+    },
+    "Pillow": {
+      "index": "https://pypi.org/pypi/Pillow/13.0.0/json",
+      "wheel": "https://files.pythonhosted.org/packages/ef/fe/f5cdaa2d1c4086e757430f368c271a58ee29cfe7378e7ae7b9d964015c25/pillow-13.0.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "filename": "pillow-13.0.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "5f56499c1a74d2b862beb0c33b8016f99d095858455df9d21583bbbc1c15b582",
+      "metadata_url": "https://pypi.org/pypi/Pillow/13.0.0/json",
+      "version": "13.0.0",
+      "python": "cp313",
+      "abi": "cp313",
+      "platform": "manylinux_2_27_x86_64.manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.11"
+      ]
+    },
+    "safetensors": {
+      "index": "https://pypi.org/pypi/safetensors/0.8.0/json",
+      "wheel": "https://files.pythonhosted.org/packages/28/50/f203ff3a3ddfe19308efc83c5a3a29ed02bf786732ec35e68bf9162f3365/safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "filename": "safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "fd6f3f93c9a0a7cc2788ee63fb763353d4bd2e89b0751bc78fcf7dda00bea774",
+      "metadata_url": "https://pypi.org/pypi/safetensors/0.8.0/json",
+      "version": "0.8.0",
+      "python": "cp310",
+      "abi": "abi3",
+      "platform": "manylinux_2_17_x86_64.manylinux2014_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.10"
+      ]
+    },
+    "comfy-kitchen": {
+      "index": "https://pypi.org/pypi/comfy-kitchen/0.2.40/json",
+      "wheel": "https://files.pythonhosted.org/packages/5d/40/1871ee8c58eeef8d15cbf49a461eba0775303f2d9eb34c11af7c29e455c1/comfy_kitchen-0.2.40-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "filename": "comfy_kitchen-0.2.40-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "eb726664c772189e6ece742876487f1349965808b854742790e9001dbb7c0f9d",
+      "metadata_url": "https://pypi.org/pypi/comfy-kitchen/0.2.40/json",
+      "version": "0.2.40",
+      "python": "cp312",
+      "abi": "abi3",
+      "platform": "manylinux_2_27_x86_64.manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.10"
+      ]
+    },
+    "comfy-aimdo": {
+      "index": "https://pypi.org/pypi/comfy-aimdo/0.6.0/json",
+      "wheel": "https://files.pythonhosted.org/packages/21/7a/d349443e634d56ab3c1d5b279f0d4858e29905234de03171f840258e4a83/comfy_aimdo-0.6.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "filename": "comfy_aimdo-0.6.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "336a96a0aabe690c5955813a7a3013db670a586910ade798cdac4b0864eb22ac",
+      "metadata_url": "https://pypi.org/pypi/comfy-aimdo/0.6.0/json",
+      "version": "0.6.0",
+      "python": "cp39",
+      "abi": "abi3",
+      "platform": "manylinux2014_x86_64.manylinux_2_17_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.9"
+      ]
+    },
+    "aiohttp": {
+      "index": "https://pypi.org/pypi/aiohttp/3.14.0/json",
+      "wheel": "https://files.pythonhosted.org/packages/c5/a3/3800dbd095cb2bb165a7ea5d94d790914677e27f45638c7d80e3f34c8945/aiohttp-3.14.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "filename": "aiohttp-3.14.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "26d9224c6dd7f5c749aba4f61315a894601448b28d94d12f4dea0903e26d2096",
+      "metadata_url": "https://pypi.org/pypi/aiohttp/3.14.0/json",
+      "version": "3.14.0",
+      "python": "cp313",
+      "abi": "cp313",
+      "platform": "manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.10"
       ]
     }
   },
@@ -46,5 +164,41 @@
     "frame_rule": "n % 17 == 5, round upward",
     "node_requires_triton": false,
     "cuda_backend_minimum": 13
-  }
+  },
+  "previous_metadata_checked_at": "2026-11-08T21:33:22.150516+00:00",
+  "python": {
+    "implementation": "CPython",
+    "version": "3.13.9",
+    "managed_by": "uv",
+    "proxy": "image Python 3.10",
+    "metadata_url": "https://raw.githubusercontent.com/astral-sh/uv/main/crates/uv-python-managed/download-metadata.json",
+    "managed_download": {
+      "cpython-3.13.9-linux-x86_64-gnu": {
+        "name": "cpython",
+        "arch": {
+          "family": "x86_64",
+          "variant": null
+        },
+        "os": "linux",
+        "libc": "gnu",
+        "major": 3,
+        "minor": 13,
+        "patch": 9,
+        "prerelease": "",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.13.9%2B20251120-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "sha256": "1bc9a94ab2425fb6ae58e45f69cab61647759b57895649701390822d976fa923",
+        "variant": null,
+        "build": "20251120"
+      }
+    }
+  },
+  "comfy_kitchen": {
+    "version": "0.2.40",
+    "commit": "f8b7e97a1418d2e529bd5405fbf86312be198ae6",
+    "registry_source": "https://raw.githubusercontent.com/Comfy-Org/comfy-kitchen/f8b7e97a1418d2e529bd5405fbf86312be198ae6/comfy_kitchen/registry.py",
+    "registry_sha256": "3968a0232c500b619640182877b33d9610ddd1726ad4e8081f5d33fee6500308",
+    "boot_assertion": "comfy_kitchen.registry.is_available('cuda')",
+    "native_wheel_required": true
+  },
+  "deviations": []
 }

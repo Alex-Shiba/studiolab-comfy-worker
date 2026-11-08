@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import threading
 import time
 from urllib.request import Request, urlopen
 
@@ -38,20 +39,23 @@ def download_file(url, target, size, digest, *, connections=6, opener=urlopen, s
     segments = [(start, min(size - 1, start + step - 1),
                  target.with_name(f"{target.name}.range-{start}-{min(size - 1, start + step - 1)}"))
                 for start in range(0, size, step)]
+    stopped = threading.Event()
 
     def segment(spec):
         start, end, path = spec
         length = end - start + 1
-        for attempt in range(5):
-            have = path.stat().st_size if path.exists() else 0
-            if have == length:
-                return
-            if have > length:
-                path.unlink()
-                have = 0
-            request = Request(url, headers={"Range": f"bytes={start + have}-{end}",
-                                            "Accept-Encoding": "identity"})
+        attempt = 0
+        while not stopped.is_set():
+            previous_attempt = attempt
             try:
+                have = path.stat().st_size if path.exists() else 0
+                if have == length:
+                    return
+                if have > length:
+                    path.unlink()
+                    have = 0
+                request = Request(url, headers={"Range": f"bytes={start + have}-{end}",
+                                                "Accept-Encoding": "identity"})
                 with opener(request, timeout=120) as response:
                     expected = f"bytes {start + have}-{end}/{size}"
                     if response.status != 206 or response.headers.get("Content-Range") != expected:
@@ -59,22 +63,32 @@ def download_file(url, target, size, digest, *, connections=6, opener=urlopen, s
                     remaining = length - have
                     with path.open("ab") as output:
                         while remaining:
+                            if stopped.is_set():
+                                return
                             data = response.read(min(8 * 1024 * 1024, remaining))
                             if not data:
                                 raise OSError("short range")
                             output.write(data)
                             remaining -= len(data)
+                            attempt = 0
                         if response.read(1):
                             raise ValueError("oversized range")
                 return
             except ValueError:
                 # A bad response must never become a trusted resume prefix.
                 path.unlink(missing_ok=True)
-                raise RuntimeError("invalid download response") from None
-            except (OSError, TimeoutError):
-                if attempt == 4:
-                    raise RuntimeError("download unavailable") from None
-                sleep(2 ** attempt)
+                attempt = previous_attempt
+            except OSError:
+                # Includes URLError, HTTPError (429/5xx), timeouts and short reads.
+                pass
+            # Only the parent's boot watchdog bounds transient retries. Progress
+            # resets the delay; persistent failures never grow beyond 30 seconds.
+            delay = min(30, 2 ** min(attempt, 5))
+            attempt = min(attempt + 1, 5)
+            if sleep is time.sleep:
+                stopped.wait(delay)
+            else:
+                sleep(delay)
 
     pool = ThreadPoolExecutor(max_workers=count)
     try:
@@ -82,6 +96,7 @@ def download_file(url, target, size, digest, *, connections=6, opener=urlopen, s
     except BaseException:
         # In particular, propagate the parent's boot watchdog immediately.
         # Waiting for every HTTP transfer here could postpone fatal retirement.
+        stopped.set()
         pool.shutdown(wait=False, cancel_futures=True)
         raise
     else:

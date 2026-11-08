@@ -47,6 +47,12 @@ class ComfyClient:
                 raise GenerationFailed("backend request failed")
             return await response.json()
 
+    async def status_only(self, method, path, **kwargs):
+        # ComfyUI returns an empty 200 without a JSON Content-Type here.
+        async with self.session.request(method, self.url + path, **kwargs) as response:
+            if response.status != 200:
+                raise GenerationFailed("backend request failed")
+
     async def _progress(self, ws, prompt_id, update):
         async for message in ws:
             if message.type != aiohttp.WSMsgType.TEXT:
@@ -67,7 +73,7 @@ class ComfyClient:
 
     async def _interrupt(self):
         try:
-            await self.json("POST", "/interrupt", json={})
+            await self.status_only("POST", "/interrupt", json={})
             for _ in range(30):
                 queue = await self.json("GET", "/queue")
                 if not queue.get("queue_running") and not queue.get("queue_pending"):
@@ -127,4 +133,4 @@ class ComfyClient:
                 await self._interrupt()
             if prompt_id:
                 with suppress(Exception):
-                    await self.json("POST", "/history", json={"delete": [prompt_id]})
+                    await self.status_only("POST", "/history", json={"delete": [prompt_id]})

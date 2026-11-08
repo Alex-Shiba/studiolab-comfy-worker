@@ -37,7 +37,8 @@ def test_cuda13_pins_and_boot_assertions(prepared, monkeypatch):
     fake = SimpleNamespace(__version__="2.14.1+cu130", version=SimpleNamespace(cuda="13.0"),
                            cuda=SimpleNamespace(is_available=lambda: True))
     monkeypatch.setitem(sys.modules, "torch", fake)
-    monkeypatch.setitem(sys.modules, "comfy_kitchen", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "comfy_kitchen", SimpleNamespace(
+        registry=SimpleNamespace(is_available=lambda name: name == "cuda")))
     exec(check)
     fake.__version__ = "2.10.0+cu130"
     with pytest.raises(AssertionError):
@@ -60,11 +61,57 @@ def test_metadata_evidence_matches_pins_and_template():
     for package, version in (("torch", "2.14.1+cu130"), ("torchvision", "0.29.1+cu130")):
         assert f"{package}=={version}" in constraints
         assert evidence["wheels"][package]["version"] == version
-        assert "cp310-cp310-manylinux_2_28_x86_64.whl" in evidence["wheels"][package]["wheel"]
+        assert "cp313-cp313-manylinux_2_28_x86_64.whl" in evidence["wheels"][package]["wheel"]
     assert "comfy-kitchen==0.2.40" in constraints and "comfy-aimdo==0.6.0" in constraints
     assert evidence["docker"]["lowest_cuda"] == "13.0.2"
     assert evidence["docker"]["image"] in (root / "README.md").read_text(encoding="utf-8")
     assert evidence["source"]["node_requires_triton"] is False
+
+
+def test_managed_python_patch_and_all_linux_wheels(prepared):
+    calls, _, _, python, _ = prepared
+    venv = next(call for call in calls if "venv" in call)
+    assert venv[venv.index("--python") + 1] == boot.COMFY_PYTHON == "3.13.9"
+    assert "--managed-python" in venv and sys.executable not in venv
+    assert python.parent.parent.name == "venv-3.13.9"
+    assert any("sys.version_info[:3] == (3, 13, 9)" in call[-1] for call in calls)
+    root = Path(__file__).resolve().parents[1]
+    evidence = json.loads((root / "stack-evidence.json").read_text())
+    assert evidence["python"]["version"] == boot.COMFY_PYTHON
+    from packaging.tags import Tag, compatible_tags, cpython_tags
+    from packaging.utils import parse_wheel_filename
+    for line in (root / "runtime-constraints.txt").read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        package, version = line.split("==")
+        wheel = evidence["wheels"][package]
+        assert wheel["version"] == version
+        _, actual, _, tags = parse_wheel_filename(wheel["filename"])
+        assert str(actual) == version
+        platforms = [tag.platform for tag in tags if tag.platform == "any" or
+                     (tag.platform.startswith("manylinux") and tag.platform.endswith("x86_64"))]
+        supported = set(cpython_tags((3, 13), platforms=platforms))
+        supported.update(compatible_tags((3, 13), interpreter="cp313", platforms=platforms))
+        assert tags & supported
+        if package in ("comfy-kitchen", "comfy-aimdo"):
+            assert Tag("py3", "none", "any") not in tags
+
+
+def test_kitchen_cuda_backend_is_required(prepared, monkeypatch):
+    calls, *_ = prepared
+    check = next(call[-1] for call in calls if "-c" in call and "import torch" in call[-1])
+    monkeypatch.setitem(sys.modules, "torch", SimpleNamespace(
+        __version__="2.14.1+cu130", version=SimpleNamespace(cuda="13.0"),
+        cuda=SimpleNamespace(is_available=lambda: True)))
+    checked = []
+    def unavailable(name):
+        checked.append(name)
+        return False
+    monkeypatch.setitem(sys.modules, "comfy_kitchen", SimpleNamespace(
+        registry=SimpleNamespace(is_available=unavailable)))
+    with pytest.raises(AssertionError):
+        exec(check)
+    assert checked == ["cuda"]
 
 
 def test_first_trial_filter_and_bearer_secret_documented():

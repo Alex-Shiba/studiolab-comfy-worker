@@ -223,11 +223,11 @@ class FakeComfy:
 
         async def delete(request):
             self.deleted.extend((await request.json())["delete"])
-            return web.json_response({})
+            return web.Response(status=200)
 
         async def interrupt(request):
             self.interrupted = True
-            return web.json_response({})
+            return web.Response(status=200)
 
         async def queue(request):
             return web.json_response({"queue_running": [], "queue_pending": []})
@@ -277,7 +277,7 @@ def test_output_path_refuses_cross_job_or_traversal(tmp_path, folder, name, kind
 
 async def test_interrupt_failure_fails_closed():
     client = ComfyClient(None)
-    client.json = AsyncMock(side_effect=OSError("private"))
+    client.status_only = AsyncMock(side_effect=OSError("private"))
     await client._interrupt()
     assert not client.healthy
 
