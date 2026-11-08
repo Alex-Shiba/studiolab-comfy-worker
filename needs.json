@@ -1,0 +1,45 @@
+{
+  "conductor": [
+    {
+      "id": "opus-review",
+      "need": "Провести повторный milestone-review исправлений у Opus перед показом владельцу.",
+      "reason": "В этом исполнителе Opus недоступен. Проверен предоставленный review, но независимый review новых изменений не выполнен; платных вызовов не было."
+    },
+    {
+      "id": "contract-contradictions",
+      "need": "Исправить оставшиеся противоречия внешнего contract.md: подписи не одноразовые; прокси запускается перед provisioning.",
+      "reason": "В Transport осталось «PyWorker signatures are single-use», в Lifecycle — «then the PyWorker proxy». Brief требует bearer-секрет на всю жизнь воркера и ранний запуск прокси. Файлы вне comfy-worker/ не менялись."
+    },
+    {
+      "id": "route-secret",
+      "need": "Проверить, что студия не логирует, не сохраняет и не показывает route answer / auth_data.",
+      "reason": "Route answer — bearer-секрет на всё время жизни воркера. Свежий route на каждый вызов не предотвращает повторное использование утёкшей подписи."
+    },
+    {
+      "id": "publish-and-configure",
+      "need": "После review отдельно опубликовать каталог, задать PYWORKER_REPO и неизменяемый PYWORKER_REF, настроить endpoint studiolab-comfy с max_workers=1 и нулевым резервом.",
+      "reason": "Commit, push, Vast и развёртывание не разрешены этой задачей и не выполнялись."
+    },
+    {
+      "id": "first-trial-filter",
+      "need": "В шаблоне первого испытания задать VRAM ≥ 24 GB, compute capability ≥ 8.6, cuda_max_good ≥ 13.0, диск ≥ 120 GB и быстрое скачивание; проверить единицы и синтаксис фильтра.",
+      "filter": {"vram_gb_min": 24, "compute_capability_min": 8.6, "cuda_max_good_min": 13.0, "disk_gb_min": 120, "fast_download": true},
+      "reason": "720p на 24 GB не проверено. Образ выбран по метаданным Docker Hub; Linux-установка и пики VRAM/RAM/диска не измерены."
+    },
+    {
+      "id": "authorized-gpu-qualification",
+      "need": "При отдельном разрешении проверить холодный/повторный старт, все режимы/размеры/звук, MP4, TLS и сохранение моделей в кеше на подходящей удалённой GPU.",
+      "reason": "Выбраны torch 2.14.1+cu130, torchvision 0.29.1+cu130, ComfyUI v0.44.0, kitchen 0.2.40, aimdo 0.6.0. Локальный успех известен из brief conductor; здесь выполнялись только CPU-тесты и чтение метаданных/исходников."
+    },
+    {
+      "id": "autoscaler-and-cold-start",
+      "need": "Измерить 15-минутное ожидание route, согласовать inactivity_timeout (начально 1200 секунд) с опросом state; проверить доставку fatal в SDK за 15 секунд и self-delete на настоящем экземпляре.",
+      "reason": "Watchdog срабатывает через 25 минут; модельный benchmark проверяет HTTP, не нагрузку GPU. Тесты имитируют процессы и DELETE; реальная сеть Vast не использовалась."
+    },
+    {
+      "id": "out-of-scope-sam-review",
+      "need": "Отдельно оценить аналогичный риск session API у production SAM, если conductor считает это нужным.",
+      "reason": "Review содержит «Apply the same patch to the production SAM worker.» Это данные review, не разрешение менять SAM в этой задаче; SAM не менялся."
+    }
+  ]
+}

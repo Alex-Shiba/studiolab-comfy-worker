@@ -1,0 +1,50 @@
+{
+  "checked_at": "2026-11-08T21:33:22.150516+00:00",
+  "network": "Metadata and source only; no weights or wheels downloaded.",
+  "wheels": {
+    "torch": {
+      "index": "https://download.pytorch.org/whl/cu130/torch/",
+      "wheel": "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl#sha256=524039bee1fdb7e96f943768335ba964a8ad2a7d5e41525da6dc4897ae27ed16",
+      "metadata_url": "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl.metadata",
+      "version": "2.14.1+cu130",
+      "python": "cp310",
+      "platform": "manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.10"
+      ]
+    },
+    "torchvision": {
+      "index": "https://download.pytorch.org/whl/cu130/torchvision/",
+      "wheel": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.29.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl#sha256=30ffe13c205f1b3554dc0c527cbcbd37ef6e09eee4a45b5ba0bbe3336efdda01",
+      "metadata_url": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.29.1%2Bcu130-cp310-cp310-manylinux_2_28_x86_64.whl.metadata",
+      "version": "0.29.1+cu130",
+      "python": "cp310",
+      "platform": "manylinux_2_28_x86_64",
+      "requirements": [
+        "Requires-Python: >=3.10,!=3.14.1",
+        "Requires-Dist: torch (>=2.14.0)"
+      ]
+    }
+  },
+  "docker_index": "https://hub.docker.com/v2/repositories/vastai/base-image/tags?page_size=100&name=cuda-13",
+  "docker": {
+    "pages_checked": 7,
+    "matching_tags": 76,
+    "image": "vastai/base-image:cuda-13.0.2-cudnn-devel-ubuntu24.04-py310-2026-03-18",
+    "digest": "sha256:5755ec9d7ee1e10ad7b8f6cdc43edd29c1b6e40090ebc3dd42de14aff25b84f5",
+    "lowest_cuda": "13.0.2",
+    "same_cuda_tags": [
+      "cuda-13.0.2-cudnn-devel-ubuntu24.04-py310-2026-03-18",
+      "cuda-13.0.2-cudnn-devel-ubuntu24.04-py310-2026-03-25",
+      "cuda-13.0.2-cudnn-devel-ubuntu24.04-py310-2026-03-26"
+    ]
+  },
+  "source": {
+    "commit": "2c75dc1b379a59e0880619d029607af5169a62ef",
+    "nodes_minimax_h3_sha256": "75514fe9093c589da231938287ef0ceeb2dcf31179143a1de9a269fb2f7bb626",
+    "quant_ops_sha256": "37f0054dfbd8430524ac2c73dafd25b8ad4eabc490a2b7490eeebde8dffbc749",
+    "frame_rule": "n % 17 == 5, round upward",
+    "node_requires_triton": false,
+    "cuda_backend_minimum": 13
+  }
+}
