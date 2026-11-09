@@ -12,11 +12,13 @@ import warnings
 from PIL import Image, ImageOps
 
 FPS = 24
-FRAMES = {seconds: 24 * seconds + (5 - 24 * seconds) % 17 for seconds in range(5, 11)}
+FRAMES = {seconds: 24 * seconds + (5 - 24 * seconds) % 17 for seconds in range(5, 16)}
 SIZES = {
     "480p": {"16:9": (864, 480), "9:16": (480, 864), "1:1": (640, 640)},
     # 720 is halfway between grid points; choose the lower one consistently.
     "720p": {"16:9": (1280, 704), "9:16": (704, 1280), "1:1": (960, 960)},
+    # H3's own canvas: a 768 short edge within 768*1344 pixels, 32-pixel grid (comfy_extras/nodes_minimax_h3.py adapt_canvas).
+    "768p": {"16:9": (1344, 768), "9:16": (768, 1344), "1:1": (992, 992)},
 }
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_IMAGE_BASE64 = 4 * ((MAX_IMAGE_BYTES + 2) // 3)
@@ -138,7 +140,7 @@ def validate_start(payload):
     if type(payload["prompt"]) is not str or not 1 <= len(payload["prompt"]) <= 4000:
         raise Invalid("prompt must contain 1 to 4000 characters")
     if type(payload["seconds"]) is not int or payload["seconds"] not in FRAMES:
-        raise Invalid("seconds must be an integer from 5 to 10")
+        raise Invalid("seconds must be an integer from 5 to 15")
     if type(payload["seed"]) is not int or not 0 <= payload["seed"] <= 2147483647:
         raise Invalid("invalid seed")
     if type(payload["audio"]) is not bool:

@@ -11,7 +11,7 @@ from conftest import encoded_image, payload
 from test_server import app_client, wait_state
 
 
-@pytest.mark.parametrize("seconds,frames", [(5, 124), (6, 158), (7, 175), (8, 192), (9, 226), (10, 243)])
+@pytest.mark.parametrize("seconds,frames", [(5, 124), (6, 158), (7, 175), (8, 192), (9, 226), (10, 243), (11, 277), (12, 294), (13, 328), (14, 345), (15, 362)])
 async def test_each_duration_reaches_graph_and_state(app_client, seconds, frames):
     http, manager, backend, _ = app_client
     data = payload(seconds=seconds)

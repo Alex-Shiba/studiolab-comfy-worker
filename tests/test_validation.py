@@ -11,7 +11,7 @@ from conftest import encoded_image, payload
 
 @pytest.mark.parametrize("field,value", [
     ("mode", "image"), ("mode", []), ("prompt", ""), ("prompt", "x" * 4001), ("prompt", 12),
-    ("seconds", True), ("seconds", 5.0), ("seconds", 4), ("seconds", 11), ("size", "1080p"), ("aspect", "4:3"),
+    ("seconds", True), ("seconds", 5.0), ("seconds", 4), ("seconds", 16), ("size", "1080p"), ("aspect", "4:3"),
     ("seed", True), ("seed", -1), ("seed", 2147483648), ("seed", 1.0), ("audio", 1), ("audio", "false"),
     ("graph", {}), ("first", None), ("last", encoded_image()),
 ])

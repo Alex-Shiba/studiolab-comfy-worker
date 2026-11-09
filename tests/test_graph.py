@@ -9,9 +9,10 @@ from conftest import encoded_image, payload
 EXPECTED = {
     ("480p", "16:9"): (864, 480), ("480p", "9:16"): (480, 864), ("480p", "1:1"): (640, 640),
     ("720p", "16:9"): (1280, 704), ("720p", "9:16"): (704, 1280), ("720p", "1:1"): (960, 960),
+    ("768p", "16:9"): (1344, 768), ("768p", "9:16"): (768, 1344), ("768p", "1:1"): (992, 992),
 }
-CASES = list(itertools.product(("text", "first", "last"), ("480p", "720p"),
-                               ("16:9", "9:16", "1:1"), range(5, 11), (False, True)))
+CASES = list(itertools.product(("text", "first", "last"), ("480p", "720p", "768p"),
+                               ("16:9", "9:16", "1:1"), range(5, 16), (False, True)))
 
 
 @pytest.mark.parametrize("mode,size,aspect,seconds,audio", CASES)
@@ -27,7 +28,7 @@ def test_every_mode_size_aspect_duration_audio(mode, size, aspect, seconds, audi
     node = graph["6"]["inputs"]
     assert (node["width"], node["height"]) == EXPECTED[(size, aspect)]
     assert node["width"] % 32 == node["height"] % 32 == 0
-    assert node["length"] == {5: 124, 6: 158, 7: 175, 8: 192, 9: 226, 10: 243}[seconds] == FRAMES[seconds]
+    assert node["length"] == {5: 124, 6: 158, 7: 175, 8: 192, 9: 226, 10: 243, 11: 277, 12: 294, 13: 328, 14: 345, 15: 362}[seconds] == FRAMES[seconds]
     assert node["length"] % 17 == 5
     assert ("first_frame" in node) == (mode != "text")
     assert ("last_frame" in node) == (mode == "last")
