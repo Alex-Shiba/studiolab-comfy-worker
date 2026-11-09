@@ -13,9 +13,11 @@ import uuid
 import aiohttp
 from aiohttp import web
 
-from comfy_client import ComfyClient
+from comfy_client import ComfyClient, LabUnavailable
 from contract import FPS, ID_PATTERN, Invalid, MAX_BODY_BYTES, TTL_S, save_frame, strict_json, validate_id, validate_start
 from graph import build_graph
+from reference_models import ReferenceModels, LabModels
+from lab import validate_lab
 from self_destruct import IdleRetirement
 
 
@@ -40,15 +42,18 @@ class Job:
     height: int | None = None
     frames: int | None = None
     exec_s: float | None = None
+    sampler_s: float | None = None
+    lab: dict | None = None
     error: str | None = None
     finished_at: float | None = None
     file: Path | None = None
+    stage: str | None = None
     fetching: bool = False
     request: str | None = None
 
     def public(self):
         result = {"state": self.state, "progress": self.progress, "fps": FPS}
-        for key in ("width", "height", "frames", "exec_s", "error"):
+        for key in ("width", "height", "frames", "exec_s", "sampler_s", "lab", "error", "stage"):
             value = getattr(self, key)
             if value is not None:
                 result[key] = value
@@ -56,9 +61,12 @@ class Job:
 
 
 class JobManager:
-    def __init__(self, backend, root, retirement, *, clock=time.monotonic, benchmark_id=None):
+    def __init__(self, backend, root, retirement, *, clock=time.monotonic, benchmark_id=None, reference_models=None, lab_models=None):
         self.backend, self.root, self.retirement, self.clock = backend, Path(root), retirement, clock
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.reference_models = reference_models
+        self.lab_models = lab_models
+        self.preparing = set()
         self.jobs = {}
         self.requests = {}
         self.queue = asyncio.Queue()
@@ -94,14 +102,20 @@ class JobManager:
         directory = self.root / job_id
         directory.mkdir(mode=0o700)
         width, height = clip.dimensions
-        job = Job(job_id, directory, width=width, height=height, frames=clip.frames, request=clip.request)
+        job = Job(job_id, directory, width=width, height=height, frames=clip.frames, request=clip.request,
+                  lab=(clip.lab or validate_lab({}, clip.mode)).public())
         try:
             names = {}
             for key, data in frames.items():
                 name = uuid.uuid4().hex + ".png"
                 (directory / name).write_bytes(data)
                 names[key] = job_id + "/" + name
-            graph = build_graph(clip, job_id, **names)
+            refs = []
+            for image in clip.refs:
+                name = uuid.uuid4().hex + image.extension
+                (directory / name).write_bytes(image.data)
+                refs.append(job_id + "/" + name)
+            graph = build_graph(clip, job_id, **names, refs=refs)
         except BaseException:
             shutil.rmtree(directory)
             raise
@@ -109,8 +123,40 @@ class JobManager:
         self.requests[clip.request] = (clip.fingerprint(), job_id)
         self.active += 1
         self.retirement.job_started()
-        self.queue.put_nowait((job, graph))
+        if clip.mode == "refs" or job.lab["lora"] in ("turbo8_768", "turbo4_768", "pika6"):
+            task = asyncio.create_task(self.prepare_references(job, graph, clip.mode == "refs"))
+            self.preparing.add(task)
+            task.add_done_callback(self.preparing.discard)
+        else:
+            self.queue.put_nowait((job, graph))
         return job
+
+    async def prepare_references(self, job, graph, references=True):
+        job.stage = "downloading_reference_model" if references else "downloading_lab_lora"
+        try:
+            if references:
+                if self.reference_models is None:
+                    raise RuntimeError("reference models unavailable")
+                await self.reference_models.wait(lambda value: setattr(job, "progress", value))
+            if job.lab["lora"] in ("ref_v01", "turbo8_768", "turbo4_768", "pika6"):
+                job.stage, job.progress = "downloading_lab_lora", 0.0
+                if self.lab_models is None:
+                    raise RuntimeError("lab models unavailable")
+                await self.lab_models.wait(job.lab["lora"], lambda value: setattr(job, "progress", value))
+            job.stage, job.progress = None, 0.0
+            self.queue.put_nowait((job, graph))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            job.error = ("lab LoRA download failed; retry the job" if job.stage == "downloading_lab_lora"
+                         else "reference model download failed; retry the references job")
+            job.state, job.stage = "failed", None
+            job.finished_at = self.clock()
+            self.active -= 1
+            self.retirement.job_finished()
+            for path in job.directory.iterdir():
+                path.unlink()
+            graph.clear()
 
     def remove(self, job):
         # Direct children generated by us only; never accept a client path.
@@ -140,9 +186,12 @@ class JobManager:
                 job.state, job.progress = "done", 1.0
             except asyncio.CancelledError:
                 raise
+            except LabUnavailable as error:
+                job.state, job.error = "failed", str(error)
             except Exception:
                 job.state, job.error = "failed", "generation failed"
             finally:
+                job.sampler_s = getattr(self.backend, "sampler_s", None)
                 # ComfyUI no longer needs keyframes or partial/failed outputs.
                 for path in job.directory.iterdir():
                     if path != job.file and path.is_file():
@@ -186,16 +235,23 @@ def make_app(manager):
                 retirement.request_finished()
 
     async def lifecycle(app):
+        if manager.reference_models:
+            manager.reference_models.start()
         tasks = [asyncio.create_task(manager.run()), asyncio.create_task(manager.sweep()),
                  asyncio.create_task(retirement.run())]
         try:
             yield
         finally:
+            tasks.extend(manager.preparing)
             for task in tasks:
                 task.cancel()
             for task in tasks:
                 with suppress(asyncio.CancelledError):
                     await task
+            if manager.reference_models:
+                await manager.reference_models.close()
+            if manager.lab_models:
+                await manager.lab_models.close()
             for job in list(manager.jobs.values()):
                 manager.remove(job)
 
@@ -286,7 +342,10 @@ async def serve():
         async with aiohttp.ClientSession(timeout=timeout) as session:
             backend = ComfyClient(session)
             manager = JobManager(backend, os.environ["COMFY_JOB_ROOT"], retirement,
-                                 benchmark_id=os.environ.get("COMFY_BENCHMARK_ID"))
+                                 benchmark_id=os.environ.get("COMFY_BENCHMARK_ID"),
+                                 reference_models=ReferenceModels(os.environ["COMFY_MODEL_ROOT"],
+                                                                  os.environ["COMFY_READY_FILE"]),
+                                 lab_models=LabModels(os.environ["COMFY_MODEL_ROOT"], os.environ["COMFY_READY_FILE"]))
             runner = web.AppRunner(make_app(manager), access_log=None)
             await runner.setup()
             await web.TCPSite(runner, "127.0.0.1", 18001).start()

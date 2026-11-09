@@ -10,6 +10,7 @@ import re
 import warnings
 
 from PIL import Image, ImageOps
+from lab import Lab, validate_lab
 
 FPS = 24
 FRAMES = {seconds: 24 * seconds + (5 - 24 * seconds) % 17 for seconds in range(5, 16)}
@@ -24,7 +25,7 @@ MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_IMAGE_BASE64 = 4 * ((MAX_IMAGE_BYTES + 2) // 3)
 MAX_IMAGE_PIXELS = 16_777_216
 MAX_IMAGE_EDGE = 8192
-MAX_BODY_BYTES = 2 * MAX_IMAGE_BASE64 + 65536
+MAX_BODY_BYTES = 4 * MAX_IMAGE_BASE64 + 65536
 TTL_S = 1800
 ID_PATTERN = re.compile(r"[0-9a-f]{32}\Z")
 
@@ -69,6 +70,8 @@ class ClipRequest:
     audio: bool
     first: InputImage | None = None
     last: InputImage | None = None
+    refs: tuple[InputImage, ...] = ()
+    lab: Lab | None = None
 
     @property
     def dimensions(self):
@@ -84,6 +87,8 @@ class ClipRequest:
         for key in ("first", "last"):
             image = getattr(self, key)
             fields[key] = hashlib.sha256(image.data).hexdigest() if image else None
+        fields["lab"] = (self.lab or validate_lab({}, self.mode)).public()
+        fields["refs"] = [hashlib.sha256(image.data).hexdigest() for image in self.refs]
         return hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
 
 
@@ -129,11 +134,11 @@ def decode_image(encoded):
 
 def validate_start(payload):
     required = {"request", "mode", "prompt", "seconds", "size", "aspect", "seed", "audio"}
-    if not isinstance(payload, dict) or not required <= payload.keys() or payload.keys() - required - {"first", "last"}:
+    if not isinstance(payload, dict) or not required <= payload.keys() or payload.keys() - required - {"first", "last", "refs", "lab"}:
         raise Invalid("missing or unknown keys")
     if not isinstance(payload["request"], str) or not ID_PATTERN.fullmatch(payload["request"]):
         raise Invalid("request must be 32 lowercase hex characters")
-    for key, options in (("mode", ("text", "frames")), ("size", tuple(SIZES)),
+    for key, options in (("mode", ("text", "frames", "refs")), ("size", tuple(SIZES)),
                          ("aspect", ("16:9", "9:16", "1:1"))):
         if type(payload[key]) is not str or payload[key] not in options:
             raise Invalid("invalid " + key)
@@ -149,8 +154,23 @@ def validate_start(payload):
         raise Invalid("text mode does not accept frames")
     if payload["mode"] == "frames" and "first" not in payload:
         raise Invalid("frames mode requires first")
+    refs = ()
+    if payload["mode"] == "refs":
+        if "first" in payload or "last" in payload:
+            raise Invalid("refs mode does not accept frames")
+        if not isinstance(payload.get("refs"), list) or not 1 <= len(payload["refs"]) <= 4:
+            raise Invalid("refs mode requires 1 to 4 pictures")
+        refs = tuple(decode_image(image) for image in payload["refs"])
+        if any(not 1 <= int(n) <= len(refs) for n in re.findall(r"<Picture (\d+)>", payload["prompt"])):
+            raise Invalid("picture tag has no reference")
+    elif "refs" in payload:
+        raise Invalid("refs require refs mode")
+    try:
+        lab = validate_lab(payload["lab"], payload["mode"]) if "lab" in payload else None
+    except ValueError as error:
+        raise Invalid(str(error)) from None
     images = {key: decode_image(payload[key]) for key in ("first", "last") if key in payload}
-    return ClipRequest(**{key: payload[key] for key in required}, **images)
+    return ClipRequest(**{key: payload[key] for key in required}, **images, refs=refs, lab=lab)
 
 
 def validate_id(payload):

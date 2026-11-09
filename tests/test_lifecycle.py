@@ -286,3 +286,23 @@ def test_model_environment_drops_credentials():
     assert model_environment({"CONTAINER_API_KEY": "fake", "MASTER_TOKEN": "fake", "VAST_MASTER_TOKEN": "fake",
                               "HF_TOKEN": "fake", "PATH": "path", "CUDA_VISIBLE_DEVICES": "0"}) == {
                                   "PATH": "path", "CUDA_VISIBLE_DEVICES": "0"}
+
+
+def test_reference_download_signal_is_after_ready(harness, monkeypatch):
+    _, children, _, log, runtime, _ = harness
+    original = worker.log_marker
+    def marker(value):
+        if value == "COMFY_READY":
+            assert not (runtime / "ready").exists()
+        original(value)
+    def sleep(_):
+        assert (runtime / "ready").exists()
+        assert "COMFY_READY" in log.read_text()
+        server = next(child for child in children if child.name == "server")
+        assert server.env["COMFY_READY_FILE"] == str(runtime / "ready")
+        assert server.env["COMFY_MODEL_ROOT"].endswith(str(Path("ComfyUI/models")))
+        raise SystemExit(0)
+    monkeypatch.setattr(worker, "log_marker", marker)
+    monkeypatch.setattr(worker.time, "sleep", sleep)
+    with pytest.raises(SystemExit):
+        worker.main()

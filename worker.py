@@ -151,6 +151,7 @@ def main():
         source, python, runtime = prepare(stage=stage)
         retire_file = runtime / "retire"
         child_env = {**model_environment(os.environ), "COMFY_JOB_ROOT": str(runtime / "jobs"),
+                     "COMFY_MODEL_ROOT": str(source / "models"), "COMFY_READY_FILE": str(runtime / "ready"),
                      "COMFY_RETIRE_FILE": str(retire_file), "COMFY_BENCHMARK_ID": benchmark,
                      "PYTHONUNBUFFERED": "1"}
         stage("comfy")
@@ -160,6 +161,7 @@ def main():
         launch([sys.executable, str(Path(__file__).with_name("server.py"))], child_env)
         wait_ready("http://127.0.0.1:18001/health", children, timeout=60)
         log_marker("COMFY_READY")
+        (runtime / "ready").touch(mode=0o600)
         watchdog.cancel()
         while True:
             for child in children:

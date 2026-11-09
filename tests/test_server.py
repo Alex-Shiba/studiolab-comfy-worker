@@ -85,7 +85,9 @@ async def test_queue_capacity_fifo_states_and_single_render(app_client):
     backend.release.set()
     done = await wait_state(http, third, "done")
     assert done == {"state": "done", "progress": 1.0, "fps": 24, "width": 864,
-                    "height": 480, "frames": 124, "exec_s": 0.0}
+                    "height": 480, "frames": 124, "exec_s": 0.0,
+                    "lab": {"attention": "default", "sparse": "off", "lora": "turbo8_544",
+                            "steps": 8, "shift": {"video": 12.0, "audio": 3.0}}}
     assert backend.order == [first, second, third] and backend.maximum == 1
     assert manager.retirement.jobs == 0
 

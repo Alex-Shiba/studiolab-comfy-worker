@@ -14,6 +14,21 @@ class GenerationFailed(RuntimeError):
     pass
 
 
+class LabUnavailable(GenerationFailed):
+    """Only fixed capability messages may be exposed to the caller."""
+
+
+def combo_options(spec):
+    """Options of a combo input in /object_info: V1 nodes send [[...options]], V3 nodes (ComfyUI 0.44
+    io.Combo, e.g. ModelAttentionBackend) send ["COMBO", {"options": [...]}]."""
+    if not isinstance(spec, (list, tuple)) or not spec:
+        return []
+    if spec[0] == "COMBO" and len(spec) > 1 and isinstance(spec[1], dict):
+        options = spec[1].get("options", [])
+        return list(options) if isinstance(options, (list, tuple)) else []
+    return list(spec[0]) if isinstance(spec[0], (list, tuple)) else []
+
+
 def output_path(history, job_dir):
     # Only SaveVideo's output, inside this job, is eligible for transfer.
     outputs = history.get("outputs", {}).get("20", {})
@@ -40,6 +55,7 @@ class ComfyClient:
         self.poll_s, self.timeout_s = poll_s, timeout_s
         self.clock = clock
         self.healthy = True
+        self.sampler_s = None
 
     async def json(self, method, path, **kwargs):
         async with self.session.request(method, self.url + path, **kwargs) as response:
@@ -54,6 +70,7 @@ class ComfyClient:
                 raise GenerationFailed("backend request failed")
 
     async def _progress(self, ws, prompt_id, update):
+        sampler_started = None
         async for message in ws:
             if message.type != aiohttp.WSMsgType.TEXT:
                 continue
@@ -62,6 +79,12 @@ class ComfyClient:
                 data = event.get("data", {})
                 if data.get("prompt_id") != prompt_id:
                     continue
+                if event.get("type") == "executing":
+                    if data.get("node") == "16":
+                        sampler_started = self.clock()
+                    elif sampler_started is not None:
+                        self.sampler_s = max(0.0, self.clock() - sampler_started)
+                        sampler_started = None
                 if event.get("type") == "progress":
                     value, maximum = data.get("value"), data.get("max")
                     if isinstance(value, (int, float)) and isinstance(maximum, (int, float)) and maximum > 0:
@@ -83,9 +106,26 @@ class ComfyClient:
             pass
         self.healthy = False
 
+    async def check_lab(self, graph):
+        kinds = {node["class_type"] for node in graph.values()}
+        optional = kinds & {"ModelAttentionBackend", "BlockSparseAttention", "MiniMaxH3SigmaShift", "ManualSigmas"}
+        if not optional:
+            return
+        info = await self.json("GET", "/object_info")
+        for kind in sorted(optional):
+            if kind not in info:
+                raise LabUnavailable("lab requires ComfyUI node " + kind)
+        if "ModelAttentionBackend" in optional:
+            inputs = info["ModelAttentionBackend"].get("input", {})
+            spec = {**inputs.get("optional", {}), **inputs.get("required", {})}.get("attention", [])
+            if "comfy kitchen attention" not in combo_options(spec):
+                raise LabUnavailable("lab kitchen requires the comfy kitchen INT8 attention backend")
+
     async def render(self, graph, job_dir, update):
+        self.sampler_s = None
         if not self.healthy:
             raise GenerationFailed("backend unavailable")
+        await self.check_lab(graph)
         prompt_id, ws, progress_task = None, None, None
         settled = False
         submitted = False
