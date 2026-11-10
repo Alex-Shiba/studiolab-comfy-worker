@@ -42,7 +42,7 @@ def validate_lab(value, mode):
         raise ValueError("invalid lab keys")
     # Empty lab selects the production profile; nonempty lab keeps legacy per-key defaults.
     if not value and mode in ("text", "frames"):
-        value = {"lora": "pika6", "attention": "kitchen", "sparse": "sol"}
+        value = {"lora": "pika6", "attention": "kitchen"}
     attention, sparse = value.get("attention", "default"), value.get("sparse", "off")
     allowed = ("ref_v01", "ref8_768") if mode == "refs" else ("turbo8_544", "turbo8_768", "turbo4_768", "pika6")
     lora = value.get("lora", "ref8_768" if mode == "refs" else "turbo8_544")

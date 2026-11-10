@@ -37,7 +37,7 @@ def test_empty_lab_matches_absent_graph_and_fingerprint(mode):
     images = {"first": encoded_image()} if mode == "frames" else {"refs": [encoded_image()]} if mode == "refs" else {}
     raw = payload(mode=mode, **images)
     explicit = {"lora": "ref8_768"} if mode == "refs" else {
-        "lora": "pika6", "attention": "kitchen", "sparse": "sol"}
+        "lora": "pika6", "attention": "kitchen"}
     assert graph_for(raw) == graph_for({**raw, "lab": {}}) == graph_for({**raw, "lab": explicit})
     assert validate_start(raw).fingerprint() == validate_start({**raw, "lab": {}}).fingerprint()
     assert validate_start(raw).fingerprint() == validate_start({**raw, "lab": explicit}).fingerprint()
@@ -51,12 +51,9 @@ def test_empty_lab_matches_absent_graph_and_fingerprint(mode):
     else:
         assert g["22"] == {"class_type": "ModelAttentionBackend", "inputs": {
             "model": ["21", 0], "attention": "comfy kitchen attention"}}
-        assert g["23"] == {"class_type": "BlockSparseAttention", "inputs": {
-            "model": ["22", 0], "selection": "sol-attn", "selection.tau": 1.3, "start_percent": .2,
-            "end_percent": 1.0, "dense_blocks": "", "min_tokens": 12288, "extra_tokens": 256,
-            "sink_conditioning": "exact_kv_and_rows", "verbose": False}}
-        assert sum(n["class_type"] == "BlockSparseAttention" for n in g.values()) == 1
-        assert g["12"]["inputs"]["model"] == ["23", 0]
+        # pika6_kitchen since 2026-11-10 (owner: «не, давай все таки pika6_kitchen»): Kitchen, no SOL node.
+        assert "23" not in g and not any(n["class_type"] == "BlockSparseAttention" for n in g.values())
+        assert g["12"]["inputs"]["model"] == ["22", 0]
         assert validate_start({**raw, "lab": {}}).lab.steps == 6
         assert g["14"]["inputs"]["sampler_name"] == "lcm"
         assert g["15"] == {"class_type": "ManualSigmas", "inputs": {
@@ -76,7 +73,7 @@ def test_explicit_legacy_profile_and_per_key_defaults(mode, lab):
 
 
 @pytest.mark.parametrize("mode", ["text", "frames"])
-@pytest.mark.parametrize("missing", ["ModelAttentionBackend", "BlockSparseAttention", "backend"])
+@pytest.mark.parametrize("missing", ["ModelAttentionBackend", "ManualSigmas", "backend"])
 async def test_default_capabilities_fail_before_prompt(mode, missing, tmp_path):
     raw = payload(mode=mode, **({"first": encoded_image()} if mode == "frames" else {}))
     graph = graph_for(raw)
