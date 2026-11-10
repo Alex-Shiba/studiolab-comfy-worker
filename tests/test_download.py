@@ -16,7 +16,7 @@ class Response(io.BytesIO):
         self.headers = {"Content-Range": f"bytes {start}-{end}/{size}"}
 
 
-def test_manifest_complete_and_boot_turbo4():
+def test_manifest_complete_and_boot_pika6():
     data = manifest()
     assert data["repository"] == "Comfy-Org/MiniMax-H3"
     assert re.fullmatch("[0-9a-f]{40}", data["revision"])
@@ -24,8 +24,17 @@ def test_manifest_complete_and_boot_turbo4():
     assert re.fullmatch("[0-9a-f]{40}", data["comfyui"]["commit"])
     assert len(data["files"]) == 5
     assert {f["path"].split("/")[-1] for f in data["files"]} == {DIFFUSION, VIDEO_VAE, AUDIO_VAE, TEXT_ENCODER, LORA}
-    assert sum(f["size"] for f in data["files"]) == 42030035151
-    turbo4 = next(f for f in data["files"] if f["path"] == "loras/" + LORA)
+    assert sum(f["size"] for f in data["files"]) == 42030014335
+    pika6 = next(f for f in data["files"] if f["path"] == "loras/" + LORA)
+    assert pika6 == {
+        "path": "loras/pika_h3_flex_fl2va_comfy_bf16.safetensors",
+        "repository": "Pika-Labs/Pika-H3-Flex",
+        "revision": "ca45d99f9b1d1859ffb9dc1cd6bfaaa994257f56",
+        "source_path": "comfy/loras/pika_h3_flex_fl2va_comfy_bf16.safetensors",
+        "size": 1956172176,
+        "sha256": "68783e6447696ec365d13c0554941e070bee4cfea13c37da52498ec4f9a53f89",
+    }
+    turbo4 = data["lab_files"]["turbo4_768"]
     assert turbo4 == {
         "path": "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
         "repository": "lightx2v/Minimax-h3-Turbo",
@@ -34,7 +43,7 @@ def test_manifest_complete_and_boot_turbo4():
         "size": 1956192992,
         "sha256": "c396a9a06f58399e9df9754b18299818d84a2ddd371724ba48fe4a41221437dc",
     }
-    assert "turbo4_768" not in data["lab_files"]
+    assert "pika6" not in data["lab_files"]
     assert data["lab_files"]["turbo8_544"] == {
         "path": "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
         "size": 1956193000,
@@ -57,7 +66,7 @@ def test_boot_download_uses_each_pinned_source(tmp_path, monkeypatch):
          tmp_path / item["path"], item["size"], item["sha256"])
         for item in data["files"]
     ]
-    assert "lightx2v/Minimax-h3-Turbo/resolve/30f485ed874aa44c8183348ad361c5eabad318da/" in calls[1][0]
+    assert "Pika-Labs/Pika-H3-Flex/resolve/ca45d99f9b1d1859ffb9dc1cd6bfaaa994257f56/comfy/loras/" in calls[1][0]
 
 
 def test_parallel_resume_integrity_and_second_boot(tmp_path):

@@ -37,15 +37,15 @@ def test_empty_lab_matches_absent_graph_and_fingerprint(mode):
     images = {"first": encoded_image()} if mode == "frames" else {"refs": [encoded_image()]} if mode == "refs" else {}
     raw = payload(mode=mode, **images)
     explicit = {"lora": "ref8_768"} if mode == "refs" else {
-        "lora": "turbo4_768", "attention": "kitchen", "sparse": "sol"}
+        "lora": "pika6", "attention": "kitchen", "sparse": "sol"}
     assert graph_for(raw) == graph_for({**raw, "lab": {}}) == graph_for({**raw, "lab": explicit})
     assert validate_start(raw).fingerprint() == validate_start({**raw, "lab": {}}).fingerprint()
     assert validate_start(raw).fingerprint() == validate_start({**raw, "lab": explicit}).fingerprint()
     g = graph_for(raw)
     assert g["10"]["inputs"]["lora_name"] == PROFILES[explicit["lora"]].filename
-    assert g["21"]["inputs"] == {"model": ["10", 0], "shift_video": 6, "shift_audio": 3}
-    assert g["15"]["inputs"]["steps"] == (8 if mode == "refs" else 4)
+    assert g["21"]["inputs"] == {"model": ["10", 0], "shift_video": 6 if mode == "refs" else 12, "shift_audio": 3}
     if mode == "refs":
+        assert g["15"]["inputs"]["steps"] == 8
         assert "22" not in g and "23" not in g
         assert g["12"]["inputs"]["model"] == g["15"]["inputs"]["model"] == ["21", 0]
     else:
@@ -56,7 +56,11 @@ def test_empty_lab_matches_absent_graph_and_fingerprint(mode):
             "end_percent": 1.0, "dense_blocks": "", "min_tokens": 12288, "extra_tokens": 256,
             "sink_conditioning": "exact_kv_and_rows", "verbose": False}}
         assert sum(n["class_type"] == "BlockSparseAttention" for n in g.values()) == 1
-        assert g["12"]["inputs"]["model"] == g["15"]["inputs"]["model"] == ["23", 0]
+        assert g["12"]["inputs"]["model"] == ["23", 0]
+        assert validate_start({**raw, "lab": {}}).lab.steps == 6
+        assert g["14"]["inputs"]["sampler_name"] == "lcm"
+        assert g["15"] == {"class_type": "ManualSigmas", "inputs": {
+            "sigmas": "1.0, 0.972973, 0.923077, 0.8, 0.571429, 0.333333, 0.0"}}
 
 
 @pytest.mark.parametrize("mode", ["text", "frames"])
@@ -163,7 +167,7 @@ def test_steps_override_and_normalized_fingerprint():
     assert graph_for(payload(lab={"steps": 4}))["15"]["inputs"]["steps"] == 4
 
 
-@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo8_544", "pika6"])
+@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo8_544", "turbo4_768"])
 def test_lazy_pins_and_download_destination(profile, tmp_path, monkeypatch):
     data = download.manifest()
     item = data["lab_files"][profile]
@@ -187,7 +191,7 @@ def test_lazy_pins_and_download_destination(profile, tmp_path, monkeypatch):
     assert progress[-1] == 1
 
 
-@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo8_544", "pika6"])
+@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo8_544", "turbo4_768"])
 async def test_lazy_background_job_stage_idempotency_state_and_retry(profile, tmp_path):
     entered, release = threading.Event(), threading.Event()
     attempts = []
@@ -241,6 +245,48 @@ async def test_lazy_background_job_stage_idempotency_state_and_retry(profile, tm
         assert len(attempts) == 2 and manager.active == 0
 
 
+@pytest.mark.parametrize("mode", ["text", "frames"])
+async def test_explicit_turbo4_accelerated_waits_for_lora(mode, tmp_path):
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def wait(profile, progress):
+        assert profile == "turbo4_768"
+        progress(.5)
+        entered.set()
+        await release.wait()
+
+    models = SimpleNamespace(wait=AsyncMock(side_effect=wait), close=AsyncMock())
+    backend = FakeBackend()
+    backend.release.set()
+    render = backend.render
+
+    async def check_graph(graph, directory, progress):
+        assert graph["10"]["inputs"]["lora_name"] == PROFILES["turbo4_768"].filename
+        assert graph["14"]["inputs"]["sampler_name"] == "res_multistep"
+        assert graph["15"] == {"class_type": "BasicScheduler", "inputs": {
+            "model": ["23", 0], "scheduler": "simple", "steps": 4, "denoise": 1.0}}
+        assert graph["21"]["inputs"] == {"model": ["10", 0], "shift_video": 6, "shift_audio": 3}
+        assert graph["22"]["inputs"]["attention"] == "comfy kitchen attention"
+        assert graph["23"]["inputs"]["model"] == ["22", 0]
+        assert sum(n["class_type"] == "BlockSparseAttention" for n in graph.values()) == 1
+        return await render(graph, directory, progress)
+
+    backend.render = check_graph
+    manager = JobManager(backend, tmp_path, IdleRetirement(lambda _: None, env={}), lab_models=models)
+    async with TestClient(TestServer(make_app(manager)), connector=connector()) as http:
+        job = await start(http, mode=mode,
+                          lab={"lora": "turbo4_768", "attention": "kitchen", "sparse": "sol"},
+                          **({"first": encoded_image()} if mode == "frames" else {}))
+        await asyncio.wait_for(entered.wait(), 2)
+        state = await wait_state(http, job, "queued")
+        assert state["stage"] == "downloading_lab_lora" and state["progress"] == .5
+        assert not backend.order
+        release.set()
+        await wait_state(http, job, "done")
+        assert backend.order == [job]
+        models.wait.assert_awaited_once()
+
+
 @pytest.mark.parametrize("kind,detail", [
     ("ModelAttentionBackend", "lab requires ComfyUI node ModelAttentionBackend"),
     ("BlockSparseAttention", "lab requires ComfyUI node BlockSparseAttention"),
@@ -281,7 +327,7 @@ async def test_sampler_seconds_only_from_matching_execution_events():
 
 async def test_capability_error_reaches_state_and_next_default_job_recovers(tmp_path):
     client = ComfyClient(None)
-    client.json = AsyncMock(return_value={"MiniMaxH3SigmaShift": {}, "BlockSparseAttention": {}})
+    client.json = AsyncMock(return_value={"MiniMaxH3SigmaShift": {}, "BlockSparseAttention": {}, "ManualSigmas": {}})
     manager = JobManager(client, tmp_path, IdleRetirement(lambda _: None, env={}))
     async with TestClient(TestServer(make_app(manager)), connector=connector()) as http:
         job = await start(http)
@@ -299,5 +345,5 @@ async def test_capability_error_reaches_state_and_next_default_job_recovers(tmp_
 
 def test_lab_does_not_leak_into_next_default_graph():
     baseline = graph_for(payload())
-    graph_for(payload(lab={"lora": "pika6", "attention": "kitchen", "sparse": "sol"}))
+    graph_for(payload(lab={"lora": "turbo4_768", "attention": "kitchen", "sparse": "sol"}))
     assert graph_for(payload()) == baseline

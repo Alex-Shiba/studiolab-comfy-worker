@@ -7,7 +7,7 @@ DIFFUSION = "minimax_h3_fl2va_pruned_int8_convrot.safetensors"
 TEXT_ENCODER = "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
 VIDEO_VAE = "minimax_h3_video_vae_int8_convrot.safetensors"
 AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
-LORA = PROFILES["turbo4_768"].filename
+LORA = PROFILES["pika6"].filename
 
 
 REF_DIFFUSION = "minimax_h3_ref2va_pruned_int8_convrot.safetensors"

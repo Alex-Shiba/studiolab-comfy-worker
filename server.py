@@ -123,7 +123,7 @@ class JobManager:
         self.requests[clip.request] = (clip.fingerprint(), job_id)
         self.active += 1
         self.retirement.job_started()
-        if clip.mode == "refs" or job.lab["lora"] in ("turbo8_768", "turbo8_544", "pika6"):
+        if clip.mode == "refs" or job.lab["lora"] in ("turbo8_768", "turbo8_544", "turbo4_768"):
             task = asyncio.create_task(self.prepare_references(job, graph, clip.mode == "refs"))
             self.preparing.add(task)
             task.add_done_callback(self.preparing.discard)
@@ -138,7 +138,7 @@ class JobManager:
                 if self.reference_models is None:
                     raise RuntimeError("reference models unavailable")
                 await self.reference_models.wait(lambda value: setattr(job, "progress", value))
-            if job.lab["lora"] in ("ref_v01", "turbo8_768", "turbo8_544", "pika6"):
+            if job.lab["lora"] in ("ref_v01", "turbo8_768", "turbo8_544", "turbo4_768"):
                 job.stage, job.progress = "downloading_lab_lora", 0.0
                 if self.lab_models is None:
                     raise RuntimeError("lab models unavailable")

@@ -14,12 +14,12 @@
       "sha256": "e889202c41dafb67b10d67b97f0d8541508036a6090af23425a5c2615d03c47a"
     },
     {
-      "path": "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
-      "repository": "lightx2v/Minimax-h3-Turbo",
-      "revision": "30f485ed874aa44c8183348ad361c5eabad318da",
-      "source_path": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
-      "size": 1956192992,
-      "sha256": "c396a9a06f58399e9df9754b18299818d84a2ddd371724ba48fe4a41221437dc"
+      "path": "loras/pika_h3_flex_fl2va_comfy_bf16.safetensors",
+      "repository": "Pika-Labs/Pika-H3-Flex",
+      "revision": "ca45d99f9b1d1859ffb9dc1cd6bfaaa994257f56",
+      "source_path": "comfy/loras/pika_h3_flex_fl2va_comfy_bf16.safetensors",
+      "size": 1956172176,
+      "sha256": "68783e6447696ec365d13c0554941e070bee4cfea13c37da52498ec4f9a53f89"
     },
     {
       "path": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
@@ -66,18 +66,18 @@
       "size": 1956193000,
       "sha256": "fb4c00361c94bad47f878d5e096c6cab2f45063b0968bd5756dcb7da6936f53e"
     },
-    "pika6": {
-      "path": "loras/pika_h3_flex_fl2va_comfy_bf16.safetensors",
-      "repository": "Pika-Labs/Pika-H3-Flex",
-      "revision": "ca45d99f9b1d1859ffb9dc1cd6bfaaa994257f56",
-      "source_path": "comfy/loras/pika_h3_flex_fl2va_comfy_bf16.safetensors",
-      "size": 1956172176,
-      "sha256": "68783e6447696ec365d13c0554941e070bee4cfea13c37da52498ec4f9a53f89"
-    },
     "turbo8_544": {
       "path": "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
       "size": 1956193000,
       "sha256": "2339acdf19bfe123f46b971ea35d367a84adb85de43627e1eceafa5a5b2b111e"
+    },
+    "turbo4_768": {
+      "path": "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+      "repository": "lightx2v/Minimax-h3-Turbo",
+      "revision": "30f485ed874aa44c8183348ad361c5eabad318da",
+      "source_path": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+      "size": 1956192992,
+      "sha256": "c396a9a06f58399e9df9754b18299818d84a2ddd371724ba48fe4a41221437dc"
     }
   }
 }
