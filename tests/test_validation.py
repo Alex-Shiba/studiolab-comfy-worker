@@ -10,7 +10,7 @@ from conftest import encoded_image, payload
 
 
 @pytest.mark.parametrize("field,value", [
-    ("mode", "image"), ("mode", []), ("prompt", ""), ("prompt", "x" * 4001), ("prompt", 12),
+    ("mode", "image"), ("mode", []), ("prompt", ""), ("prompt", "x" * 7001), ("prompt", 12),
     ("seconds", True), ("seconds", 5.0), ("seconds", 4), ("seconds", 16), ("size", "1080p"), ("aspect", "4:3"),
     ("seed", True), ("seed", -1), ("seed", 2147483648), ("seed", 1.0), ("audio", 1), ("audio", "false"),
     ("graph", {}), ("first", None), ("last", encoded_image()),
@@ -42,7 +42,7 @@ def test_frames_and_text_rules():
     request = validate_start(payload(mode="frames", first=encoded_image("JPEG"), last=encoded_image()))
     assert request.first.extension == ".jpg" and request.last.extension == ".png"
     assert validate_start(payload(seed=0, prompt="x")).seed == 0
-    assert validate_start(payload(seed=2147483647, prompt="я" * 4000)).seed == 2147483647
+    assert validate_start(payload(seed=2147483647, prompt="я" * 7000)).seed == 2147483647
 
 
 @pytest.mark.parametrize("value", ["!", "", "data:image/png;base64,abcd", None, 4,

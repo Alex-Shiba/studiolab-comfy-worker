@@ -142,8 +142,8 @@ def validate_start(payload):
                          ("aspect", ("16:9", "9:16", "1:1"))):
         if type(payload[key]) is not str or payload[key] not in options:
             raise Invalid("invalid " + key)
-    if type(payload["prompt"]) is not str or not 1 <= len(payload["prompt"]) <= 4000:
-        raise Invalid("prompt must contain 1 to 4000 characters")
+    if type(payload["prompt"]) is not str or not 1 <= len(payload["prompt"]) <= 7000:
+        raise Invalid("prompt must contain 1 to 7000 characters")
     if type(payload["seconds"]) is not int or payload["seconds"] not in FRAMES:
         raise Invalid("seconds must be an integer from 5 to 15")
     if type(payload["seed"]) is not int or not 0 <= payload["seed"] <= 2147483647:
