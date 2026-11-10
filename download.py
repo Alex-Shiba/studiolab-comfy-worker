@@ -143,7 +143,9 @@ def download_file(url, target, size, digest, *, connections=6, opener=urlopen, s
 def download_models(model_root):
     data = manifest()
     for item in data["files"]:
-        url = f"https://huggingface.co/{data['repository']}/resolve/{data['revision']}/{item['path']}"
+        repo, revision = item.get("repository", data["repository"]), item.get("revision", data["revision"])
+        source = item.get("source_path", item["path"])
+        url = f"https://huggingface.co/{repo}/resolve/{revision}/{source}"
         download_file(url, Path(model_root) / item["path"], item["size"], item["sha256"])
 
 

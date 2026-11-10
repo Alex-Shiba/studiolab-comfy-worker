@@ -1,6 +1,10 @@
 # StudioLab: отдельный видеоворкер Vast
 
-Endpoint `studiolab-comfy` принимает параметры ролика, выполняет один фиксированный граф MiniMax H3 Turbo8 и возвращает MP4. SAM остаётся отдельным endpoint. Клиент не передаёт графы, имена узлов, пути или URL картинок. Этот каталог — самостоятельная единица развёртывания: `worker.py` и `requirements.txt` должны лежать в корне опубликованного репозитория.
+Endpoint `studiolab-comfy` принимает параметры ролика, выполняет граф MiniMax H3 с профилем `t4_768_kitchen_sol` по умолчанию для text/frames и возвращает MP4. SAM остаётся отдельным endpoint. Клиент не передаёт графы, имена узлов, пути или URL картинок. Этот каталог — самостоятельная единица развёртывания: `worker.py` и `requirements.txt` должны лежать в корне опубликованного репозитория.
+
+Решение владельца от 2026-11-10: «Да, t4 основным». Без `lab` или с `lab={}` text/frames используют `turbo4_768`, 4 шага, сдвиги 6/3, Kitchen INT8 и SOL. Непустой `lab` сохраняет прежние значения пропущенных ключей; refs не изменён. Контракт — в `LAB.md`.
+
+Два A/B-раунда на RTX 5090 (768p, 5 с, 10 сцен: два диалога на русском, экшен, собака на пляже, макро чая, толпа на рынке) дали 24 с выполнения против 99–123 с у прежнего значения по умолчанию (turbo8_544 без Kitchen/SOL) и 76 с у pika6. Русская речь в обоих диалогах распознана слово в слово; качество изображения оценено как сопоставимое.
 
 ## Шаблон первого испытания
 
@@ -32,7 +36,7 @@ Endpoint `studiolab-comfy` принимает параметры ролика, �
 - ComfyUI: управляемый uv **CPython 3.13.9**, отдельный каталог `venv-3.13.9`; PyWorker и модельный API сохраняют Python 3.10 образа.
 - transformers **5.21.0**, safetensors **0.8.0**, numpy **2.5.4**, PyAV **19.0.2**, Pillow **13.0.0**, aiohttp **3.14.0**. Ограничения ComfyUI — `runtime-constraints.txt`; это не полный lock транзитивных зависимостей.
 - Vast SDK **1.8.3**; зависимости прокси и модельного API остаются в `requirements.txt`.
-- Пять файлов из `Comfy-Org/MiniMax-H3`, revision `54472221d27c695fca9621b0c3ed52f06c4af707`, всего **42 030 035 159 байт**. Имена, размеры и SHA-256 — `model-manifest.json`.
+- Пять файлов при старте: четыре из `Comfy-Org/MiniMax-H3`, revision `54472221d27c695fca9621b0c3ed52f06c4af707`, и LoRA `turbo4_768` из `lightx2v/Minimax-h3-Turbo`, revision `30f485ed874aa44c8183348ad361c5eabad318da`; всего **42 030 035 151 байт**. `turbo8_544` загружается по запросу из `lab_files`. Имена, размеры и SHA-256 — `model-manifest.json`.
 
 Индекс PyTorch содержит обе Linux x86-64 **cp313** wheel. На PyPI проверены колёса всех остальных закреплённых зависимостей: cp313, совместимые abi3 и универсальное колесо transformers. Для kitchen и aimdo выбраны нативные Linux-колёса, не универсальные заглушки. Все версии из brief сохранены без замен. Имена файлов, SHA-256, ссылки, метаданные управляемого CPython 3.13.9 и исходник registry — `stack-evidence.json`. Проверка образа из предыдущего раунда сохранена: среди семи страниц подходящих тегов Docker Hub минимальна CUDA **13.0.2**. Образ, интерпретатор и wheels не скачивались.
 
@@ -67,7 +71,7 @@ Endpoint `studiolab-comfy` принимает параметры ролика, �
 
 Для `refs` обязателен массив `refs` из **1–4** картинок с теми же проверками JPEG/PNG, размера и пикселей. `first`/`last` запрещены; у остальных режимов `refs` запрещён. Картинки сохраняются без cover-crop: узел сохраняет пропорции при `ref_image_size="match"`. Теги `<Picture 1>`…`<Picture N>` соответствуют порядку массива; тег без картинки отвергается. Идемпотентность учитывает байты **и порядок** референсов. Студия передаёт прикреплённые картинки, затем картинки именованных героев. `@ImageN`, `@Image N`, `@PictureN`, `@Picture N` без учёта регистра заменяются на `<Picture N>`. На Vast замена и проверка тегов выполняются только для references; text/frames сохраняют их буквально. Оценка references включает ещё 460 секунд: пакет 22 926 572 616 байт при предполагаемых 50 MB/s, округление вверх. При quote состояние кэша неизвестно; резерв по-прежнему равен четырём оценкам. Vast проверяет предел 4000 символов до принятия заказа.
 
-Refs-граф использует `minimax_h3_ref2va_pruned_int8_convrot.safetensors` и lightx2v `minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors`: `MiniMaxH3ReferenceToVideo`, video/audio VAE, `res_multistep`, `simple`, 8 шагов, сдвиги video 6 / audio 3 через `MiniMaxH3SigmaShift` (отображаемое имя `ModelSamplingMiniMaxH3`). Старый ref2v v0.1 доступен как `lab.lora="ref_v01"`. Без `lab` text/frames сохраняют прежний Turbo8 544p. Профили, ограничения и проверенные узлы описаны в [LAB.md](LAB.md).
+Refs-граф использует `minimax_h3_ref2va_pruned_int8_convrot.safetensors` и lightx2v `minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors`: `MiniMaxH3ReferenceToVideo`, video/audio VAE, `res_multistep`, `simple`, 8 шагов, сдвиги video 6 / audio 3 через `MiniMaxH3SigmaShift` (отображаемое имя `ModelSamplingMiniMaxH3`). Старый ref2v v0.1 доступен как `lab.lora="ref_v01"`. Без `lab` text/frames используют `t4_768_kitchen_sol`. Профили, ограничения и проверенные узлы описаны в [LAB.md](LAB.md).
 
 **API autogrow:** ключи входов узла — `ref_images.ref_image_0`, …, `ref_images.ref_image_3`, каждый со связью `["<LoadImage node>", 0]`, а не вложенный JSON-массив. Источники ComfyUI 0.44: `comfy_extras/nodes_minimax_h3.py:280–283` (шаблон), `:297–308` (выходы и порядок), `comfy_api/latest/_io.py:1137` и `:1199–1228` (индексы от нуля и разворачивание), `:2048–2062` и `:2095–2113` (точечные пути и сборка аргументов).
 
@@ -110,7 +114,7 @@ File возвращает весь MP4 с `Content-Type: video/mp4` и точн�
 
 Сетка canvas — 32 пикселя. При 24 fps число кадров округляется вверх до `17k+5`: **5→124, 6→158, 7→175, 8→192, 9→226, 10→243, 11→277, 12→294, 13→328, 14→345, 15→362** (обученный диапазон H3: 124–362 кадра). Видео не обрезается до ровного числа секунд.
 
-Фиксированные веса: FL2VA pruned INT8 ConvRot, INT8 video VAE, fp32 audio VAE, Qwen3-VL 32B NVFP4-AWQ, Turbo8 LoRA. Семплер `res_multistep`, scheduler `simple`, 8 шагов, denoise=1, 24 fps, MP4/H.264. При `audio=true` сохраняется собственный звук H3; при false аудиодекодер и audio-вход экспорта отсутствуют. История ComfyUI удаляется после каждого задания, `--disable-metadata` остаётся включённым. Кодеки, синхронизация и пики памяти требуют отдельного GPU-испытания.
+Основные веса: FL2VA pruned INT8 ConvRot, INT8 video VAE, fp32 audio VAE, Qwen3-VL 32B NVFP4-AWQ, Turbo4 768p LoRA. По умолчанию для text/frames: семплер `res_multistep`, scheduler `simple`, 4 шага, сдвиги 6/3, Kitchen INT8, SOL, denoise=1, 24 fps, MP4/H.264. При `audio=true` сохраняется собственный звук H3; при false аудиодекодер и audio-вход экспорта отсутствуют. История ComfyUI удаляется после каждого задания, `--disable-metadata` остаётся включённым. Кодеки, синхронизация и пики памяти требуют отдельного GPU-испытания.
 
 ## Проверка
 

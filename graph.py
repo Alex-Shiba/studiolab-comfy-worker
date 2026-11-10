@@ -7,7 +7,7 @@ DIFFUSION = "minimax_h3_fl2va_pruned_int8_convrot.safetensors"
 TEXT_ENCODER = "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
 VIDEO_VAE = "minimax_h3_video_vae_int8_convrot.safetensors"
 AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
-LORA = "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+LORA = PROFILES["turbo4_768"].filename
 
 
 REF_DIFFUSION = "minimax_h3_ref2va_pruned_int8_convrot.safetensors"
@@ -73,9 +73,8 @@ def build_graph(clip: ClipRequest, job_id: str, first=None, last=None, refs=()):
     g["10"]["inputs"]["lora_name"] = PROFILES[lab.lora].filename
     g["15"]["inputs"]["steps"] = lab.steps
     model = ["10", 0]
-    if clip.lab is not None or clip.mode == "refs":
-        g["21"] = node("MiniMaxH3SigmaShift", model=model, shift_video=lab.shift[0], shift_audio=lab.shift[1])
-        model = ["21", 0]
+    g["21"] = node("MiniMaxH3SigmaShift", model=model, shift_video=lab.shift[0], shift_audio=lab.shift[1])
+    model = ["21", 0]
     if lab.attention == "kitchen":
         g["22"] = node("ModelAttentionBackend", model=model, attention="comfy kitchen attention")
         model = ["22", 0]

@@ -27,7 +27,66 @@ def request_for(profile, **lab):
 
 def graph_for(raw):
     job = "a" * 32
-    return build_graph(validate_start(raw), job, refs=[job + "/" + "b" * 32 + ".png"] if raw["mode"] == "refs" else [])
+    return build_graph(validate_start(raw), job,
+                       first=job + "/" + "b" * 32 + ".png" if raw["mode"] == "frames" else None,
+                       refs=[job + "/" + "b" * 32 + ".png"] if raw["mode"] == "refs" else [])
+
+
+@pytest.mark.parametrize("mode", ["text", "frames", "refs"])
+def test_empty_lab_matches_absent_graph_and_fingerprint(mode):
+    images = {"first": encoded_image()} if mode == "frames" else {"refs": [encoded_image()]} if mode == "refs" else {}
+    raw = payload(mode=mode, **images)
+    explicit = {"lora": "ref8_768"} if mode == "refs" else {
+        "lora": "turbo4_768", "attention": "kitchen", "sparse": "sol"}
+    assert graph_for(raw) == graph_for({**raw, "lab": {}}) == graph_for({**raw, "lab": explicit})
+    assert validate_start(raw).fingerprint() == validate_start({**raw, "lab": {}}).fingerprint()
+    assert validate_start(raw).fingerprint() == validate_start({**raw, "lab": explicit}).fingerprint()
+    g = graph_for(raw)
+    assert g["10"]["inputs"]["lora_name"] == PROFILES[explicit["lora"]].filename
+    assert g["21"]["inputs"] == {"model": ["10", 0], "shift_video": 6, "shift_audio": 3}
+    assert g["15"]["inputs"]["steps"] == (8 if mode == "refs" else 4)
+    if mode == "refs":
+        assert "22" not in g and "23" not in g
+        assert g["12"]["inputs"]["model"] == g["15"]["inputs"]["model"] == ["21", 0]
+    else:
+        assert g["22"] == {"class_type": "ModelAttentionBackend", "inputs": {
+            "model": ["21", 0], "attention": "comfy kitchen attention"}}
+        assert g["23"] == {"class_type": "BlockSparseAttention", "inputs": {
+            "model": ["22", 0], "selection": "sol-attn", "selection.tau": 1.3, "start_percent": .2,
+            "end_percent": 1.0, "dense_blocks": "", "min_tokens": 12288, "extra_tokens": 256,
+            "sink_conditioning": "exact_kv_and_rows", "verbose": False}}
+        assert sum(n["class_type"] == "BlockSparseAttention" for n in g.values()) == 1
+        assert g["12"]["inputs"]["model"] == g["15"]["inputs"]["model"] == ["23", 0]
+
+
+@pytest.mark.parametrize("mode", ["text", "frames"])
+@pytest.mark.parametrize("lab", [{"lora": "turbo8_544"}, {"steps": 8}, {"attention": "default"}, {"sparse": "off"}])
+def test_explicit_legacy_profile_and_per_key_defaults(mode, lab):
+    raw = payload(mode=mode, lab=lab, **({"first": encoded_image()} if mode == "frames" else {}))
+    g = graph_for(raw)
+    assert g["10"]["inputs"]["lora_name"] == PROFILES["turbo8_544"].filename
+    assert g["21"]["inputs"] == {"model": ["10", 0], "shift_video": 12, "shift_audio": 3}
+    assert g["15"]["inputs"] == {"model": ["21", 0], "scheduler": "simple", "steps": 8, "denoise": 1.0}
+    assert g["12"]["inputs"]["model"] == ["21", 0]
+    assert "22" not in g and "23" not in g
+
+
+@pytest.mark.parametrize("mode", ["text", "frames"])
+@pytest.mark.parametrize("missing", ["ModelAttentionBackend", "BlockSparseAttention", "backend"])
+async def test_default_capabilities_fail_before_prompt(mode, missing, tmp_path):
+    raw = payload(mode=mode, **({"first": encoded_image()} if mode == "frames" else {}))
+    graph = graph_for(raw)
+    info = {node["class_type"]: {} for node in graph.values()}
+    info["ModelAttentionBackend"] = {"input": {"required": {"attention": [
+        "COMBO", {"options": ["pytorch attention"] if missing == "backend" else ["comfy kitchen attention"]}]}}}
+    if missing != "backend":
+        del info[missing]
+    client = ComfyClient(None)
+    client.json = AsyncMock(return_value=info)
+    message = "INT8 attention backend" if missing == "backend" else "lab requires ComfyUI node " + missing
+    with pytest.raises(LabUnavailable, match=message):
+        await client.render(graph, tmp_path, lambda _: None)
+    client.json.assert_awaited_once_with("GET", "/object_info")
 
 
 @pytest.mark.parametrize("profile,steps,video", [
@@ -97,14 +156,14 @@ def test_steps_override_and_normalized_fingerprint():
     raw = payload()
     base = validate_start(raw).fingerprint()
     assert base == validate_start({**raw, "lab": {}}).fingerprint()
-    assert base == validate_start({**raw, "lab": {"lora": "turbo8_544", "steps": 8}}).fingerprint()
+    assert base != validate_start({**raw, "lab": {"lora": "turbo8_544", "steps": 8}}).fingerprint()
     for lab in [{"attention": "kitchen"}, {"sparse": "sol"}, {"lora": "turbo4_768"},
                 {"steps": 4}, {"shift": {"video": 7, "audio": 3}}]:
         assert base != validate_start({**raw, "lab": lab}).fingerprint()
     assert graph_for(payload(lab={"steps": 4}))["15"]["inputs"]["steps"] == 4
 
 
-@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo4_768", "pika6"])
+@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo8_544", "pika6"])
 def test_lazy_pins_and_download_destination(profile, tmp_path, monkeypatch):
     data = download.manifest()
     item = data["lab_files"][profile]
@@ -128,7 +187,7 @@ def test_lazy_pins_and_download_destination(profile, tmp_path, monkeypatch):
     assert progress[-1] == 1
 
 
-@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo4_768", "pika6"])
+@pytest.mark.parametrize("profile", ["ref_v01", "turbo8_768", "turbo8_544", "pika6"])
 async def test_lazy_background_job_stage_idempotency_state_and_retry(profile, tmp_path):
     entered, release = threading.Event(), threading.Event()
     attempts = []
@@ -222,10 +281,10 @@ async def test_sampler_seconds_only_from_matching_execution_events():
 
 async def test_capability_error_reaches_state_and_next_default_job_recovers(tmp_path):
     client = ComfyClient(None)
-    client.json = AsyncMock(return_value={"MiniMaxH3SigmaShift": {}})
+    client.json = AsyncMock(return_value={"MiniMaxH3SigmaShift": {}, "BlockSparseAttention": {}})
     manager = JobManager(client, tmp_path, IdleRetirement(lambda _: None, env={}))
     async with TestClient(TestServer(make_app(manager)), connector=connector()) as http:
-        job = await start(http, lab={"attention": "kitchen"})
+        job = await start(http)
         failed = await wait_state(http, job, "failed")
         assert failed["error"] == "lab requires ComfyUI node ModelAttentionBackend"
         assert failed["lab"]["attention"] == "kitchen" and failed["exec_s"] >= 0
@@ -235,7 +294,7 @@ async def test_capability_error_reaches_state_and_next_default_job_recovers(tmp_
         backend.release.set()
         manager.backend = backend
         done = await wait_state(http, await start(http), "done")
-        assert done["lab"]["attention"] == "default" and "sampler_s" not in done
+        assert done["lab"]["attention"] == "kitchen" and "sampler_s" not in done
 
 
 def test_lab_does_not_leak_into_next_default_graph():

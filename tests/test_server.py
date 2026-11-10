@@ -86,8 +86,8 @@ async def test_queue_capacity_fifo_states_and_single_render(app_client):
     done = await wait_state(http, third, "done")
     assert done == {"state": "done", "progress": 1.0, "fps": 24, "width": 864,
                     "height": 480, "frames": 124, "exec_s": 0.0,
-                    "lab": {"attention": "default", "sparse": "off", "lora": "turbo8_544",
-                            "steps": 8, "shift": {"video": 12.0, "audio": 3.0}}}
+                    "lab": {"attention": "kitchen", "sparse": "sol", "lora": "turbo4_768",
+                            "steps": 4, "shift": {"video": 6.0, "audio": 3.0}}}
     assert backend.order == [first, second, third] and backend.maximum == 1
     assert manager.retirement.jobs == 0
 
@@ -234,7 +234,13 @@ class FakeComfy:
         async def queue(request):
             return web.json_response({"queue_running": [], "queue_pending": []})
 
+        async def object_info(request):
+            # The default text/frames graph (t4_768_kitchen_sol since 2026-11-10) is checked for its nodes before /prompt.
+            return web.json_response({"MiniMaxH3SigmaShift": {}, "BlockSparseAttention": {}, "ManualSigmas": {},
+                "ModelAttentionBackend": {"input": {"required": {"attention": ["COMBO", {"options": ["comfy kitchen attention"]}]}}}})
+
         app.router.add_get("/ws", ws)
+        app.router.add_get("/object_info", object_info)
         app.router.add_post("/prompt", prompt)
         app.router.add_get("/history/{id}", history)
         app.router.add_post("/history", delete)

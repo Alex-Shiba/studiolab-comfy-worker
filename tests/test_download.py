@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from download import download_file, manifest, valid_file
+from download import download_file, download_models, manifest, valid_file
 from graph import AUDIO_VAE, DIFFUSION, LORA, TEXT_ENCODER, VIDEO_VAE
 
 
@@ -16,7 +16,7 @@ class Response(io.BytesIO):
         self.headers = {"Content-Range": f"bytes {start}-{end}/{size}"}
 
 
-def test_manifest_complete_and_only_turbo8():
+def test_manifest_complete_and_boot_turbo4():
     data = manifest()
     assert data["repository"] == "Comfy-Org/MiniMax-H3"
     assert re.fullmatch("[0-9a-f]{40}", data["revision"])
@@ -24,11 +24,40 @@ def test_manifest_complete_and_only_turbo8():
     assert re.fullmatch("[0-9a-f]{40}", data["comfyui"]["commit"])
     assert len(data["files"]) == 5
     assert {f["path"].split("/")[-1] for f in data["files"]} == {DIFFUSION, VIDEO_VAE, AUDIO_VAE, TEXT_ENCODER, LORA}
-    assert sum(f["size"] for f in data["files"]) == 42030035159
+    assert sum(f["size"] for f in data["files"]) == 42030035151
+    turbo4 = next(f for f in data["files"] if f["path"] == "loras/" + LORA)
+    assert turbo4 == {
+        "path": "loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+        "repository": "lightx2v/Minimax-h3-Turbo",
+        "revision": "30f485ed874aa44c8183348ad361c5eabad318da",
+        "source_path": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+        "size": 1956192992,
+        "sha256": "c396a9a06f58399e9df9754b18299818d84a2ddd371724ba48fe4a41221437dc",
+    }
+    assert "turbo4_768" not in data["lab_files"]
+    assert data["lab_files"]["turbo8_544"] == {
+        "path": "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+        "size": 1956193000,
+        "sha256": "2339acdf19bfe123f46b971ea35d367a84adb85de43627e1eceafa5a5b2b111e",
+    }
     for item in data["files"]:
         assert type(item["size"]) is int and item["size"] > 0
         assert re.fullmatch("[0-9a-f]{64}", item["sha256"])
         assert ".." not in item["path"] and not item["path"].startswith("/")
+
+
+def test_boot_download_uses_each_pinned_source(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr("download.download_file", lambda *args: calls.append(args))
+    download_models(tmp_path)
+    data = manifest()
+    assert calls == [
+        (f"https://huggingface.co/{item.get('repository', data['repository'])}/resolve/"
+         f"{item.get('revision', data['revision'])}/{item.get('source_path', item['path'])}",
+         tmp_path / item["path"], item["size"], item["sha256"])
+        for item in data["files"]
+    ]
+    assert "lightx2v/Minimax-h3-Turbo/resolve/30f485ed874aa44c8183348ad361c5eabad318da/" in calls[1][0]
 
 
 def test_parallel_resume_integrity_and_second_boot(tmp_path):

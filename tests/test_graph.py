@@ -34,7 +34,7 @@ def test_every_mode_size_aspect_duration_audio(mode, size, aspect, seconds, audi
     assert ("last_frame" in node) == (mode == "last")
     assert ("audio" in graph["19"]["inputs"]) is audio
     assert ("18" in graph and "4" in graph) is audio
-    assert graph["15"]["inputs"] == {"model": ["10", 0], "scheduler": "simple", "steps": 8, "denoise": 1.0}
+    assert graph["15"]["inputs"] == {"model": ["23", 0], "scheduler": "simple", "steps": 4, "denoise": 1.0}
     assert graph["14"]["inputs"]["sampler_name"] == "res_multistep"
     assert graph["19"]["inputs"]["fps"] == 24
     assert graph["20"]["inputs"]["format"] == "mp4"
