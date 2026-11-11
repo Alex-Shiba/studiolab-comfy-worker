@@ -82,38 +82,6 @@
   },
   "regen_files": [
     {
-      "repository": "slmonker/Open-H3-Regenerate-2K-IC-ComfyUI",
-      "revision": "7d6e5e288e9ff9d6f6812abb6540e84327fa74bf",
-      "source_path": "minimax_h3_open_regenerate_2k_ic_comfy_bf16.safetensors",
-      "path": "loras/minimax_h3_open_regenerate_2k_ic_comfy_bf16.safetensors",
-      "size": 5868430560,
-      "sha256": "a0c93dce50d9034cc084073b6c095d09ff25ad02351ac4d4f10113d67ae64ab3"
-    },
-    {
-      "repository": "drbaph/MiniMax-H3-Turbo-Lora-ComfyUI",
-      "revision": "bb2bc497cbaca89dadd0bcf1856eed4f8275be20",
-      "source_path": "minimax_h3_hyperflow_8step_v1.0_comfyui_pruned_bf16.safetensors",
-      "path": "loras/minimax_h3_hyperflow_8step_v1.0_comfyui_pruned_bf16.safetensors",
-      "size": 3912313312,
-      "sha256": "d8e9c618c12614aeae605a1fb7da42ae626ba79b8d53f534dfbfb119de28f06f"
-    },
-    {
-      "repository": "Efficient-Large-Model/Open-H3-Regenerate-2K-IC",
-      "revision": "54a7104b204fb46486cf85c2f600942118186d57",
-      "source_path": "lora/minimax_h3_lms_v1.0_r64.safetensors",
-      "path": "loras/minimax_h3_lms_v1.0_r64.safetensors",
-      "size": 1239664536,
-      "sha256": "16f3195bc6bffa431c0598dc2031e520ba058b4fcbc9f104db9e3fdfdeacf60c"
-    },
-    {
-      "repository": "Efficient-Large-Model/Open-H3-Regenerate-2K-IC",
-      "revision": "54a7104b204fb46486cf85c2f600942118186d57",
-      "source_path": "vae_fast/fast_h3_vae_v2_24l.safetensors",
-      "path": "vae/fast_h3_vae_v2_24l.safetensors",
-      "size": 6471256328,
-      "sha256": "b7527bf0dbac4b4ffc37e106478e5caabc96894f29cd1ebfe38cea0b44982eb0"
-    },
-    {
       "repository": "Efficient-Large-Model/Open-H3-Regenerate-2K",
       "revision": "50c09cf1df5f9262b9279868c1c666bd5fe3476b",
       "source_path": "lora/open_h3_regenerate_2k_lora.safetensors",
@@ -148,20 +116,6 @@
   ],
   "regen_nodes": [
     {
-      "name": "ComfyUI-OpenH3Regenerate2KIC",
-      "repository": "https://github.com/slmonker/ComfyUI-OpenH3Regenerate2KIC.git",
-      "commit": "a85bd9664a752637c5ec88bf4b1930b4688fc251",
-      "subdirectory": ".",
-      "requirements": "requirements.txt"
-    },
-    {
-      "name": "ComfyUI-LynnReal",
-      "repository": "https://github.com/LynnReal-AI/LynnReal-Omni.git",
-      "commit": "ad16ac787430bd22456ee55f018764cf53c25935",
-      "subdirectory": "comfyui/custom_nodes/ComfyUI-LynnReal",
-      "requirements": null
-    },
-    {
       "name": "h3regen",
       "repository": "https://github.com/goofyrodent/h3regen.git",
       "commit": "9b686c5ffd380e9d1351f9b8beef6d20d703ca3e",
@@ -176,14 +130,5 @@
       "requirements": null
     }
   ],
-  "regen_node_assets": [
-    {
-      "repository": "https://github.com/slmonker/ComfyUI-OpenH3Regenerate2KIC.git",
-      "revision": "a85bd9664a752637c5ec88bf4b1930b4688fc251",
-      "path": "assets/silence_audio_124f.safetensors",
-      "node": "ComfyUI-OpenH3Regenerate2KIC",
-      "size": 26768,
-      "sha256": "dc90d8b8505f7160110b4122fb78348b232877e2928f7049c6833dcebde3f18c"
-    }
-  ]
+  "regen_node_assets": []
 }

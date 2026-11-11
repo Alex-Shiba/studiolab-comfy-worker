@@ -2,42 +2,6 @@
   "checked": "2026-11-11",
   "weights": [
     {
-      "repository": "slmonker/Open-H3-Regenerate-2K-IC-ComfyUI",
-      "revision": "7d6e5e288e9ff9d6f6812abb6540e84327fa74bf",
-      "source_path": "minimax_h3_open_regenerate_2k_ic_comfy_bf16.safetensors",
-      "path": "loras/minimax_h3_open_regenerate_2k_ic_comfy_bf16.safetensors",
-      "size": 5868430560,
-      "sha256": "a0c93dce50d9034cc084073b6c095d09ff25ad02351ac4d4f10113d67ae64ab3",
-      "source": "https://huggingface.co/api/models/slmonker/Open-H3-Regenerate-2K-IC-ComfyUI/revision/7d6e5e288e9ff9d6f6812abb6540e84327fa74bf?blobs=true"
-    },
-    {
-      "repository": "drbaph/MiniMax-H3-Turbo-Lora-ComfyUI",
-      "revision": "bb2bc497cbaca89dadd0bcf1856eed4f8275be20",
-      "source_path": "minimax_h3_hyperflow_8step_v1.0_comfyui_pruned_bf16.safetensors",
-      "path": "loras/minimax_h3_hyperflow_8step_v1.0_comfyui_pruned_bf16.safetensors",
-      "size": 3912313312,
-      "sha256": "d8e9c618c12614aeae605a1fb7da42ae626ba79b8d53f534dfbfb119de28f06f",
-      "source": "https://huggingface.co/api/models/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI/revision/bb2bc497cbaca89dadd0bcf1856eed4f8275be20?blobs=true"
-    },
-    {
-      "repository": "Efficient-Large-Model/Open-H3-Regenerate-2K-IC",
-      "revision": "54a7104b204fb46486cf85c2f600942118186d57",
-      "source_path": "lora/minimax_h3_lms_v1.0_r64.safetensors",
-      "path": "loras/minimax_h3_lms_v1.0_r64.safetensors",
-      "size": 1239664536,
-      "sha256": "16f3195bc6bffa431c0598dc2031e520ba058b4fcbc9f104db9e3fdfdeacf60c",
-      "source": "https://huggingface.co/api/models/Efficient-Large-Model/Open-H3-Regenerate-2K-IC/revision/54a7104b204fb46486cf85c2f600942118186d57?blobs=true"
-    },
-    {
-      "repository": "Efficient-Large-Model/Open-H3-Regenerate-2K-IC",
-      "revision": "54a7104b204fb46486cf85c2f600942118186d57",
-      "source_path": "vae_fast/fast_h3_vae_v2_24l.safetensors",
-      "path": "vae/fast_h3_vae_v2_24l.safetensors",
-      "size": 6471256328,
-      "sha256": "b7527bf0dbac4b4ffc37e106478e5caabc96894f29cd1ebfe38cea0b44982eb0",
-      "source": "https://huggingface.co/api/models/Efficient-Large-Model/Open-H3-Regenerate-2K-IC/revision/54a7104b204fb46486cf85c2f600942118186d57?blobs=true"
-    },
-    {
       "repository": "Efficient-Large-Model/Open-H3-Regenerate-2K",
       "revision": "50c09cf1df5f9262b9279868c1c666bd5fe3476b",
       "source_path": "lora/open_h3_regenerate_2k_lora.safetensors",
@@ -76,22 +40,6 @@
   ],
   "nodes": [
     {
-      "name": "ComfyUI-OpenH3Regenerate2KIC",
-      "repository": "https://github.com/slmonker/ComfyUI-OpenH3Regenerate2KIC.git",
-      "commit": "a85bd9664a752637c5ec88bf4b1930b4688fc251",
-      "subdirectory": ".",
-      "requirements": "requirements.txt",
-      "source": "https://github.com/slmonker/ComfyUI-OpenH3Regenerate2KIC/commit/a85bd9664a752637c5ec88bf4b1930b4688fc251"
-    },
-    {
-      "name": "ComfyUI-LynnReal",
-      "repository": "https://github.com/LynnReal-AI/LynnReal-Omni.git",
-      "commit": "ad16ac787430bd22456ee55f018764cf53c25935",
-      "subdirectory": "comfyui/custom_nodes/ComfyUI-LynnReal",
-      "requirements": null,
-      "source": "https://github.com/LynnReal-AI/LynnReal-Omni/commit/ad16ac787430bd22456ee55f018764cf53c25935"
-    },
-    {
       "name": "h3regen",
       "repository": "https://github.com/goofyrodent/h3regen.git",
       "commit": "9b686c5ffd380e9d1351f9b8beef6d20d703ca3e",
@@ -108,61 +56,8 @@
       "source": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler/commit/f34cadb19f10fee7e36091b690cac39b4eb40573"
     }
   ],
-  "compatibility": [
-    {
-      "file": "minimax_h3_open_regenerate_2k_ic_comfy_bf16.safetensors",
-      "source": "https://huggingface.co/slmonker/Open-H3-Regenerate-2K-IC-ComfyUI/resolve/7d6e5e288e9ff9d6f6812abb6540e84327fa74bf/minimax_h3_open_regenerate_2k_ic_comfy_bf16.safetensors",
-      "base_source": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/54472221d27c695fca9621b0c3ed52f06c4af707/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-      "checked_lora_modules": 208,
-      "missing_or_mismatched": [],
-      "adaln_example": null,
-      "header_sha256": "06e7d37a13e8f383b165fe90134aee036f1126b9e90a38e2d7af413123eb9f61",
-      "method": "Safetensors header read with HTTP Range; A/B dimensions checked against every target base weight. No tensors executed."
-    },
-    {
-      "file": "minimax_h3_hyperflow_8step_v1.0_comfyui_pruned_bf16.safetensors",
-      "source": "https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI/resolve/bb2bc497cbaca89dadd0bcf1856eed4f8275be20/minimax_h3_hyperflow_8step_v1.0_comfyui_pruned_bf16.safetensors",
-      "base_source": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/54472221d27c695fca9621b0c3ed52f06c4af707/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-      "checked_lora_modules": 208,
-      "missing_or_mismatched": [],
-      "adaln_example": null,
-      "header_sha256": "51a02e04c182bc01a81985d6b7004185360d2690344cf04756ae5d92e75072f7",
-      "method": "Safetensors header read with HTTP Range; A/B dimensions checked against every target base weight. No tensors executed."
-    },
-    {
-      "file": "minimax_h3_lms_v1.0_r64.safetensors",
-      "source": "https://huggingface.co/Efficient-Large-Model/Open-H3-Regenerate-2K-IC/resolve/54a7104b204fb46486cf85c2f600942118186d57/lora/minimax_h3_lms_v1.0_r64.safetensors",
-      "base_source": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/54472221d27c695fca9621b0c3ed52f06c4af707/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-      "checked_lora_modules": 258,
-      "missing_or_mismatched": [],
-      "adaln_example": {
-        "target": "blocks.0.adaln_proj.linear.weight",
-        "A": [
-          64,
-          8
-        ],
-        "B": [
-          96768,
-          64
-        ],
-        "base": [
-          96768,
-          8
-        ]
-      },
-      "header_sha256": "705805c5d45ce99473a258c0970cb0ffd0510fddf7fc3d7a0dfb86ce221cbc4c",
-      "method": "Safetensors header read with HTTP Range; A/B dimensions checked against every target base weight. No tensors executed."
-    }
-  ],
   "upstream": {
-    "ic_workflow": "https://github.com/slmonker/ComfyUI-OpenH3Regenerate2KIC/blob/a85bd9664a752637c5ec88bf4b1930b4688fc251/workflows/open_h3_regenerate_2k_ic_api.json",
     "refine_workflow": "https://github.com/goofyrodent/h3regen/blob/9b686c5ffd380e9d1351f9b8beef6d20d703ca3e/example_workflows/Open-H3%20Regenerate%202K%20-%20Draft%20Video.json",
-    "ic_sigmas": [
-      0.834942,
-      0.696852,
-      0.468753,
-      0.0
-    ],
     "refine_release_sigmas": [
       0.909375,
       0.8571428571428571,
@@ -170,14 +65,9 @@
       0.0
     ],
     "refine_default_start_sigma": 0.8,
-    "refine_grid_shift": 6.0,
-    "ic_shift_video": 12.0,
-    "ic_shift_audio": 3.0
+    "refine_grid_shift": 6.0
   },
   "limitations": [
-    "Shape compatibility is not GPU or numerical parity validation.",
-    "The pruned HyperFlow conversion omits time-embedder adapters. It is an experimental INT8 adaptation of the community workflow.",
-    "The pinned LynnReal loader rejects unprefixed blocks.* fast-VAE weights; h3regen decodes fast weights and LynnReal loads the conventional tiled fallback.",
     "h3regen HEAD 0979f5723ceea842ddb0bf6b5723d7d13ec2634e has a required spatial_batch argument absent from INPUT_TYPES; the previous tested API commit is pinned.",
     "The h3regen fallback expects a plain video tensor; LTXVSeparateAVLatent separates the joint AV sampler output before decode."
   ]

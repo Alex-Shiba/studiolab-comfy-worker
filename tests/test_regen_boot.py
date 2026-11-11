@@ -84,8 +84,8 @@ def test_enabled_pinned_clone_checkout_allowlist_and_requirements(provision, mon
     calls, stages, links = provision
     source, python, runtime = boot.prepare(stage=stages.append)
     pins = download.manifest()["regen_nodes"]
-    assert len(pins) == len(links) == 4
-    assert {p["name"] for p in pins} == {"ComfyUI-OpenH3Regenerate2KIC", "ComfyUI-LynnReal", "h3regen", "Comfyui_Minimax_h3_latent_Upscaler"}
+    assert len(pins) == len(links) == 2
+    assert {p["name"] for p in pins} == {"h3regen", "Comfyui_Minimax_h3_latent_Upscaler"}
     for p in pins:
         assert re.fullmatch(r"[0-9a-f]{40}", p["commit"])
         clone = next(c for c in calls if "clone" in c and p["repository"] in c)
@@ -95,7 +95,7 @@ def test_enabled_pinned_clone_checkout_allowlist_and_requirements(provision, mon
         assert ["git", "-C", clone[-1], "diff", "--exit-code", "HEAD", "--"] in calls
         assert any(a.name == p["name"] and b == Path(clone[-1]) / p["subdirectory"] for a, b in links)
     checks = [c for c in calls if boot.REQUIREMENTS_CHECK in c]
-    assert len(checks) == 2 and all(c[0] == str(python) for c in checks)
+    assert len(checks) == 1 and all(c[0] == str(python) for c in checks)
     assert not any("pip" in c and any("regen-sources" in x for x in c) for c in calls)
     launch = boot.comfy_command(source, python, runtime)
     assert "--lowvram" in launch and "--disable-all-custom-nodes" in launch
@@ -124,7 +124,7 @@ def test_missing_requirements_installed_only_in_comfy_venv(provision, monkeypatc
     assert "-c" in installs[0] and "--upgrade" not in installs[0]
 
 
-@pytest.mark.parametrize("failure", ["clone", "checkout", "requirements", "asset", "pin"])
+@pytest.mark.parametrize("failure", ["clone", "checkout", "requirements", "pin"])
 def test_install_failure_precedes_download(provision, monkeypatch, failure):
     monkeypatch.setenv("COMFY_REGEN", "1")
     original = boot.command
@@ -137,8 +137,6 @@ def test_install_failure_precedes_download(provision, monkeypatch, failure):
                 return "wrong"
         return result
     monkeypatch.setattr(boot, "command", command)
-    if failure == "asset":
-        monkeypatch.setattr(boot, "valid_file", lambda *a: False)
     with pytest.raises(RuntimeError):
         boot.prepare(stage=provision[1].append)
     assert provision[1] == ["install"]
@@ -162,8 +160,14 @@ def test_regen_install_failure_reports_comfy_fatal_install(harness, provision, m
 def test_all_regen_weights_pinned_and_downloaded_with_hashes(monkeypatch, tmp_path):
     monkeypatch.setenv("COMFY_REGEN", "1")
     m = download.manifest()
-    assert len(m["regen_files"]) == 8
-    assert sum(x["size"] for x in m["regen_files"]) == 38_344_709_904
+    assert {item["path"] for item in m["regen_files"]} == {
+        "loras/open_h3_regenerate_2k_lora.safetensors",
+        "loras/sharp_curve_branches.safetensors",
+        "latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_bf16.safetensors",
+        "vae/fast_h3_vae_noncausal_24l.safetensors",
+    }
+    assert m["regen_node_assets"] == []
+    assert sum(x["size"] for x in m["regen_files"]) == 20_853_045_168
     for item in m["regen_files"] + m["regen_node_assets"]:
         assert re.fullmatch(r"[0-9a-f]{40}", item["revision"])
         assert re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
@@ -219,13 +223,10 @@ def test_requirement_check_honors_pins_and_markers(tmp_path, monkeypatch, capsys
     assert capsys.readouterr().out.strip() == "missing"
 
 
-def test_network_evidence_matches_every_pin_and_lora_shape_check():
+def test_recorded_evidence_matches_every_kept_pin():
     evidence = json.loads(Path(__file__).parents[1].joinpath("regen-evidence.json").read_text())
     m = download.manifest()
     for group, evidence_group in (("regen_files", "weights"), ("regen_nodes", "nodes")):
         assert [{k: v for k, v in item.items() if k != "source"} for item in evidence[evidence_group]] == m[group]
-    assert [c["checked_lora_modules"] for c in evidence["compatibility"]] == [208, 208, 258]
-    assert all(not c["missing_or_mismatched"] for c in evidence["compatibility"])
-    assert evidence["upstream"]["ic_sigmas"] == [0.834942, 0.696852, 0.468753, 0.0]
     assert evidence["upstream"]["refine_release_sigmas"] == [0.909375, 6 / 7, 2 / 3, 0.0]
     assert evidence["upstream"]["refine_grid_shift"] == 6.0

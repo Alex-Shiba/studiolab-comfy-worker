@@ -4,7 +4,7 @@ import subprocess
 import pytest
 
 from contract import Invalid, strict_json, validate_start
-from graph import build_graph, HYPERFLOW, SHARP, IC_LORA, FAST_IC, FAST_REFINE, REF_DIFFUSION
+from graph import build_graph, FAST_REFINE, REF_DIFFUSION
 import regen
 
 
@@ -26,7 +26,7 @@ def draft_bytes(tmp_path, monkeypatch):
     return make_video(tmp_path / "draft.mp4")
 
 
-def regen_payload(raw=b"video", method="ic", resolution="2k", **changes):
+def regen_payload(raw=b"video", method="refine", resolution="2k", **changes):
     return dict(request="a" * 32, mode="regen", prompt="A blue landscape", seed=42,
                 video=base64.b64encode(raw).decode(), regen=dict(method=method, resolution=resolution), **changes)
 
@@ -51,7 +51,7 @@ def test_disabled_rejects_regen(value, monkeypatch):
         validate_start(regen_payload())
 
 
-@pytest.mark.parametrize("method", ["ic", "refine"])
+@pytest.mark.parametrize("method", ["refine"])
 @pytest.mark.parametrize("resolution", ["1080p", "2k"])
 def test_regen_valid_and_fingerprint(no_probe, method, resolution):
     payload = regen_payload(method=method, resolution=resolution)
@@ -71,9 +71,9 @@ def test_regen_valid_and_fingerprint(no_probe, method, resolution):
 
 @pytest.mark.parametrize("field,value", [
     ("method", "upscale"), ("method", []), ("method", None), ("resolution", "4k"),
-    ("resolution", []), ("resolution", 1080), ("extra", True), ("start_sigma", .8),
+    ("resolution", []), ("resolution", 1080), ("extra", True), ("method", "ic"),
 ])
-def test_ic_option_validation(no_probe, field, value):
+def test_regen_option_validation(no_probe, field, value):
     p = regen_payload()
     p["regen"][field] = value
     with pytest.raises(Invalid):
@@ -125,7 +125,7 @@ def test_prompt_and_video_limits(no_probe, monkeypatch):
 
 
 @pytest.mark.parametrize("method,frames,valid", [
-    ("ic", 112, False), ("ic", 113, True), ("ic", 124, True), ("ic", 125, False),
+    ("ic", 112, False), ("ic", 113, False), ("ic", 124, False), ("ic", 125, False),
     ("refine", 119, False), ("refine", 120, True), ("refine", 360, True), ("refine", 361, False),
 ])
 def test_real_mp4_frame_bounds(enabled, tmp_path, monkeypatch, method, frames, valid):
@@ -135,12 +135,12 @@ def test_real_mp4_frame_bounds(enabled, tmp_path, monkeypatch, method, frames, v
         clip = validate_start(regen_payload(raw, method))
         assert clip.frames == frames and clip.video.audio
     else:
-        with pytest.raises(Invalid, match="113 to 124" if method == "ic" else "5 to 15"):
+        with pytest.raises(Invalid, match="regen method must be refine" if method == "ic" else "5 to 15"):
             validate_start(regen_payload(raw, method))
     assert not list(tmp_path.glob("regen-probe-*"))
 
 
-@pytest.mark.parametrize("method", ["ic", "refine"])
+@pytest.mark.parametrize("method", ["refine"])
 def test_30fps_read_at_24(enabled, tmp_path, monkeypatch, method):
     monkeypatch.setattr(regen.tempfile, "tempdir", str(tmp_path))
     clip = validate_start(regen_payload(make_video(tmp_path / "input.mp4", frames=150, fps=30, audio=False), method))
@@ -159,7 +159,7 @@ def test_invalid_mp4_and_probe_timeout(enabled, tmp_path, monkeypatch):
     assert not list(tmp_path.glob("regen-probe-*"))
 
 
-@pytest.mark.parametrize("method", ["ic", "refine"])
+@pytest.mark.parametrize("method", ["refine"])
 @pytest.mark.parametrize("resolution", ["1080p", "2k"])
 def test_graph_recipe(no_probe, method, resolution):
     clip = validate_start(regen_payload(method=method, resolution=resolution))
@@ -173,36 +173,18 @@ def test_graph_recipe(no_probe, method, resolution):
     assert g["17"]["inputs"]["keep_loaded"] is False
     assert g["17"]["inputs"]["samples"] == ["29", 0]
     assert g["29"] == dict(class_type="LTXVSeparateAVLatent", inputs=dict(av_latent=["16", 0]))
-    assert g["17"]["inputs"]["vae"] == (["5", 0] if method == "ic" else ["3", 0])
+    assert g["17"]["inputs"]["vae"] == ["3", 0]
     assert "audio" not in g["19"]["inputs"]  # packet-copy after render
-    if method == "ic":
-        assert g["1"]["inputs"]["unet_name"] == REF_DIFFUSION
-        assert [(g[n]["inputs"]["lora_name"], g[n]["inputs"]["model"]) for n in ("10", "11", "24")] == [
-            (HYPERFLOW, ["1", 0]), (SHARP, ["10", 0]), (IC_LORA, ["11", 0])]
-        assert all(g[n]["inputs"]["strength_model"] == 1 for n in ("10", "11", "24"))
-        assert g["21"]["inputs"] == dict(model=["24", 0], shift_video=12., shift_audio=3.)
-        assert g["15"] == dict(class_type="OpenH3ICSigmas", inputs=dict(sampler="up3", custom_sigmas=""))
-        assert g["8"]["inputs"]["ref_videos.ref_video_0"] == ["6", 0]
-        assert g["8"]["inputs"]["prompt"] == ["7", 0]
-        assert g["28"]["inputs"] == dict(video_latent=["27", 0], reference_latent=["8", 1], pin_audio=True)
-        for n in ("8", "27"):
-            assert (g[n]["inputs"]["width"], g[n]["inputs"]["height"]) == ((1920, 1088) if resolution == "1080p" else (2560, 1440))
-        assert g["6"]["inputs"]["frame_count"] == 124
-        assert g["6"]["inputs"]["target_width"] == 1344 and g["6"]["inputs"]["target_height"] == 768
-        assert g["5"]["inputs"]["tile_size"] == 256 and g["5"]["inputs"]["tile_overlap"] == 64
-        assert g["5"]["inputs"]["compile_decoder"] is False
-        assert g["17"]["inputs"]["vae_name"] == FAST_IC
-    else:
-        assert g["10"]["class_type"] == "OpenH3RegenLora"
-        assert g["10"]["inputs"]["curve_table"] == REF_DIFFUSION
-        assert g["10"]["inputs"]["lora_dtype"] == "bf16"
-        assert g["27"]["inputs"]["temporal_chunking"] is True
-        assert g["27"]["inputs"]["resolution"].startswith(resolution)
-        assert g["15"]["inputs"] == dict(steps=3, start_sigma=.8)
-        assert g["21"]["inputs"]["selection.tau"] == 1.2
-        assert g["21"]["inputs"]["dense_blocks"] == "0,1,49"
-        assert g["28"]["inputs"]["audio_mode"] == "silence (reference)"
-        assert g["17"]["inputs"]["vae_name"] == FAST_REFINE
+    assert g["10"]["class_type"] == "OpenH3RegenLora"
+    assert g["10"]["inputs"]["curve_table"] == REF_DIFFUSION
+    assert g["10"]["inputs"]["lora_dtype"] == "bf16"
+    assert g["27"]["inputs"]["temporal_chunking"] is True
+    assert g["27"]["inputs"]["resolution"].startswith(resolution)
+    assert g["15"]["inputs"] == dict(steps=3, start_sigma=.8)
+    assert g["21"]["inputs"]["selection.tau"] == 1.2
+    assert g["21"]["inputs"]["dense_blocks"] == "0,1,49"
+    assert g["28"]["inputs"]["audio_mode"] == "silence (reference)"
+    assert g["17"]["inputs"]["vae_name"] == FAST_REFINE
     # Every edge is internal and every node is reachable from SaveVideo.
     visited = set()
     def visit(number):
@@ -228,5 +210,20 @@ def test_refine_portrait_reports_the_upstream_orientation(no_probe, monkeypatch)
     assert clip.dimensions == (1080, 1920)
     graph = build_graph(clip, "b" * 32, video="b" * 32 + "/" + "c" * 32 + ".mp4")
     assert graph["27"]["inputs"]["resolution"] == "1080p (1920x1080)"
-    # IC's published cover crop is deliberately always landscape.
-    assert validate_start(regen_payload(method="ic", resolution="1080p")).dimensions == (1920, 1080)
+
+
+def test_omitted_method_is_refine(no_probe):
+    explicit = regen_payload()
+    implicit = regen_payload()
+    del implicit["regen"]["method"]
+    assert validate_start(implicit).regen.public() == {"method": "refine", "resolution": "2k", "start_sigma": .8}
+    assert validate_start(implicit).fingerprint() == validate_start(explicit).fingerprint()
+
+
+@pytest.mark.parametrize("method", ["ic", "", "upscale", None, [], {}, True, 1])
+def test_other_methods_refused_before_probe(enabled, monkeypatch, method):
+    def unexpected_probe(*args):
+        pytest.fail("invalid method must be rejected before media inspection")
+    monkeypatch.setattr(regen, "inspect_draft", unexpected_probe)
+    with pytest.raises(Invalid, match="^regen method must be refine$"):
+        validate_start(regen_payload(method=method))

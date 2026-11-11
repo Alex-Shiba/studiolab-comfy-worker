@@ -61,7 +61,7 @@ class RegenRequest:
     @property
     def dimensions(self):
         dimensions = RESOLUTIONS[self.regen.resolution]
-        if self.regen.method == "refine" and self.video.height > self.video.width:
+        if self.video.height > self.video.width:
             return dimensions[::-1]
         return dimensions
 
@@ -106,14 +106,12 @@ def inspect_draft(raw, method):
         duration = float(stream.get("duration") or info["format"]["duration"])
         if not math.isfinite(duration) or duration <= 0:
             raise Invalid("invalid video duration")
-        # Exactly the sampling rules in OpenH3ICDraft / OpenH3RegenPrepareDraft.
-        frames = math.ceil(count * 24 / fps) if method == "ic" else round(count * 24 / fps)
-        if method == "ic" and not 113 <= frames <= 124:
-            raise Invalid("ic requires 113 to 124 real frames after reading at 24 fps")
-        if method == "refine" and (not 5 <= duration <= 15 or not 120 <= frames <= 360):
+        # Match OpenH3RegenPrepareDraft's CFR sampling rules.
+        frames = round(count * 24 / fps)
+        if not 5 <= duration <= 15 or not 120 <= frames <= 360:
             raise Invalid("refine requires a draft from 5 to 15 seconds")
         # VFR timestamps that disagree with the recipe's count/fps math cannot
-        # preserve timing through either published node's CFR resampling.
+        # preserve timing through the draft node's CFR resampling.
         if abs(duration - float(count / fps)) > 1 / 24:
             raise Invalid("video must have consistent frame timing")
         return Draft(raw, int(frames), duration, any(s["codec_type"] == "audio" for s in info["streams"]), w, h)
@@ -135,22 +133,18 @@ def validate_regen(payload):
     if type(payload["seed"]) is not int or not 0 <= payload["seed"] <= 2147483647:
         raise Invalid("invalid seed")
     options = payload["regen"]
-    if (type(options) is not dict or not {"method", "resolution"} <= options.keys()
+    if (type(options) is not dict or not {"resolution"} <= options.keys()
             or options.keys() - {"method", "resolution", "start_sigma"}):
         raise Invalid("invalid regen keys")
-    method, resolution = options["method"], options["resolution"]
-    if type(method) is not str or method not in ("ic", "refine"):
-        raise Invalid("regen method must be ic or refine")
+    method, resolution = options.get("method", "refine"), options["resolution"]
+    if type(method) is not str or method != "refine":
+        raise Invalid("regen method must be refine")
     if type(resolution) is not str or resolution not in RESOLUTIONS:
         raise Invalid("regen resolution must be 1080p or 2k")
-    sigma = None
-    if method == "ic" and "start_sigma" in options:
-        raise Invalid("start_sigma is only accepted for refine")
-    if method == "refine":
-        sigma = options.get("start_sigma", .8)
-        if type(sigma) not in (int, float) or not math.isfinite(sigma) or not .5 <= sigma <= .95:
-            raise Invalid("start_sigma must be a number from 0.5 to 0.95")
-        sigma = float(sigma)
+    sigma = options.get("start_sigma", .8)
+    if type(sigma) not in (int, float) or not math.isfinite(sigma) or not .5 <= sigma <= .95:
+        raise Invalid("start_sigma must be a number from 0.5 to 0.95")
+    sigma = float(sigma)
     encoded = payload["video"]
     if type(encoded) is not str or not 1 <= len(encoded) <= MAX_VIDEO_BASE64:
         raise Invalid("video must be base64 MP4 of at most 48 MiB")

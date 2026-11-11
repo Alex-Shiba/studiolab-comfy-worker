@@ -150,7 +150,7 @@ class JobManager:
             if self.regen_models is None or self.reference_models is None:
                 raise RuntimeError("regen models unavailable")
             await self.regen_models.wait(lambda value: setattr(job, "progress", value * .6))
-            # Both recipes need Ref2VA: IC's base and refine's Sharp curve table.
+            # Refine needs Ref2VA for its Sharp curve table.
             await self.reference_models.wait(lambda value: setattr(job, "progress", .6 + value * .4))
             job.stage, job.progress = None, 0.0
             self.queue.put_nowait((job, graph))
