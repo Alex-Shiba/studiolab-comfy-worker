@@ -70,6 +70,8 @@ def harness(tmp_path, monkeypatch):
     delete = AsyncMock(return_value=204)
     monkeypatch.setattr(self_destruct, "delete_instance", delete)
     monkeypatch.setattr(worker, "prepare", prepare)
+    # The machine's exam has its own tests (test_exam.py); here it passes with a few numbers.
+    monkeypatch.setattr(worker, "examine", lambda log, **kwargs: {"machine_id": 7, "ram_gb": 125.0, "down_mb_s": 180.0})
     monkeypatch.setattr(worker, "wait_ready", lambda *a, **k: events.append("ready"))
     monkeypatch.setattr(worker.subprocess, "Popen", Child)
     monkeypatch.setattr(worker.time, "sleep", sleep)
@@ -112,6 +114,35 @@ def test_fatal_boot_reports_stage_waits_and_deletes_once(harness, monkeypatch, s
     assert sleeps == [15] and events[-1] == "stop:proxy"
     assert all(child.stopped for child in children)
     delete.assert_awaited_once_with("123", "fake-container-secret")
+
+
+def test_a_machine_that_fails_the_exam_is_given_back_before_the_install(harness, monkeypatch):
+    events, children, sleeps, log, _, delete = harness
+    def refuse(log_line, **kwargs):
+        log_line('COMFY_EXAM_FAILED download {"down_mb_s": 5.0}')
+        raise worker.ExamFailed("download")
+    monkeypatch.setattr(worker, "examine", refuse)
+    with pytest.raises(SystemExit) as error:
+        worker.main()
+    assert error.value.code == 1
+    text = log.read_text()
+    assert "COMFY_STAGE exam" in text and "COMFY_EXAM_FAILED download" in text and "COMFY_FATAL exam ExamFailed" in text
+    assert "COMFY_STAGE install" not in text and "prepare" not in events
+    assert "COMFY_SELF_DESTRUCT fatal status=204" in text
+    assert sleeps == [15] and all(child.stopped for child in children)
+    delete.assert_awaited_once_with("123", "fake-container-secret")
+
+
+def test_the_machine_numbers_reach_the_model_server_and_nothing_else(harness):
+    events, children, _, log, runtime, _ = harness
+    with pytest.raises(SystemExit):
+        worker.main()
+    server = next(child for child in children if child.name == "server")
+    import json
+    sent = json.loads(server.env["COMFY_MACHINE"])
+    assert sent["machine_id"] == 7 and sent["ram_gb"] == 125.0 and sent["down_mb_s"] == 180.0 and sent["boot_s"] >= 0
+    assert events.index("proxy") < events.index("prepare")
+    assert log.read_text().index("COMFY_STAGE exam") < log.read_text().index("COMFY_STAGE install")
 
 
 def test_fatal_boot_watchdog_uses_same_deletion_path(harness, monkeypatch):

@@ -14,8 +14,10 @@ import uuid
 from aiohttp import web
 from vastai import BenchmarkConfig, HandlerConfig, LogActionConfig, Worker, WorkerConfig
 
-from boot import comfy_command, comfy_environment, prepare, wait_ready
+from boot import WORKSPACE, comfy_command, comfy_environment, prepare, wait_ready
 from contract import MAX_BODY_BYTES
+from download import manifest
+import exam
 from diagnostics import Diagnostics, model_environment
 from self_destruct import retire
 from server import log_marker
@@ -77,6 +79,20 @@ def close_sessions(backend):
 class BootTimeout(RuntimeError):
     # Not OSError/TimeoutError: readiness and download retries must not swallow it.
     pass
+
+
+class ExamFailed(RuntimeError):
+    """The machine cannot finish a boot: it is given back before anything is installed."""
+
+
+def examine(log, *, measure=exam.measure, env=None):
+    """The first minute's look at the machine; returns its numbers or raises ExamFailed. The line it logs carries only numbers."""
+    facts = measure(WORKSPACE, manifest(), WORKSPACE / "studiolab-comfy" / "ComfyUI" / "models", env=env)
+    reason = exam.verdict(facts, env)
+    log(exam.marker(facts, reason))
+    if reason:
+        raise ExamFailed(reason)
+    return facts
 
 
 class BootWatchdog:
@@ -147,13 +163,19 @@ def main():
         proxy_env.pop("CONTAINER_API_KEY", None)
         stage("proxy")
         launch([sys.executable, str(Path(__file__)), "--proxy"], proxy_env)
+        # Before the install and the tens of gigabytes of models: a machine that cannot finish the boot leaves now.
+        stage("exam")
+        booted = time.monotonic()
+        facts = examine(log_marker)
         stage("install")
         source, python, runtime = prepare(stage=stage)
         retire_file = runtime / "retire"
+        # What the studio keeps about this machine travels with every state answer: numbers and Vast's own ids only.
+        facts["boot_s"] = round(time.monotonic() - booted)
         child_env = {**model_environment(os.environ), "COMFY_JOB_ROOT": str(runtime / "jobs"),
                      "COMFY_MODEL_ROOT": str(source / "models"), "COMFY_READY_FILE": str(runtime / "ready"),
                      "COMFY_RETIRE_FILE": str(retire_file), "COMFY_BENCHMARK_ID": benchmark,
-                     "PYTHONUNBUFFERED": "1"}
+                     "COMFY_MACHINE": exam.public(facts), "PYTHONUNBUFFERED": "1"}
         stage("comfy")
         comfy = launch(comfy_command(source, python, runtime), comfy_environment(child_env), cwd=source)
         wait_ready("http://127.0.0.1:8188/object_info", children, nodes=True)

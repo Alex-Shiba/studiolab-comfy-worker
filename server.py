@@ -20,6 +20,7 @@ from reference_models import ReferenceModels, LabModels, RegenModels
 from regen import enabled as regen_enabled, finish_video
 from lab import validate_lab
 from self_destruct import IdleRetirement
+from exam import from_environment as machine_facts
 
 
 def log_marker(marker):
@@ -305,6 +306,7 @@ def make_app(manager):
 
     # Bound CPU image decoding independently of the generation queue.
     decode_slots = asyncio.Semaphore(2)
+    machine = machine_facts()
 
     def crop_frames(clip):
         frames = {}
@@ -334,7 +336,9 @@ def make_app(manager):
 
     async def state(request):
         job = await find(request)
-        return web.json_response(job.public() if job else {"error": "unknown"}, status=200 if job else 404)
+        # The machine's own numbers (exam.py) ride on every state answer: the studio keeps its list of machines from them.
+        return web.json_response({**job.public(), **({"machine": machine} if machine else {})} if job else {"error": "unknown"},
+                                 status=200 if job else 404)
 
     async def file(request):
         job = await find(request)
