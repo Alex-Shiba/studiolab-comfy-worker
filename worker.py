@@ -14,7 +14,7 @@ import uuid
 from aiohttp import web
 from vastai import BenchmarkConfig, HandlerConfig, LogActionConfig, Worker, WorkerConfig
 
-from boot import comfy_command, prepare, wait_ready
+from boot import comfy_command, comfy_environment, prepare, wait_ready
 from contract import MAX_BODY_BYTES
 from diagnostics import Diagnostics, model_environment
 from self_destruct import retire
@@ -155,7 +155,7 @@ def main():
                      "COMFY_RETIRE_FILE": str(retire_file), "COMFY_BENCHMARK_ID": benchmark,
                      "PYTHONUNBUFFERED": "1"}
         stage("comfy")
-        comfy = launch(comfy_command(source, python, runtime), child_env, cwd=source)
+        comfy = launch(comfy_command(source, python, runtime), comfy_environment(child_env), cwd=source)
         wait_ready("http://127.0.0.1:8188/object_info", children, nodes=True)
         stage("server")
         launch([sys.executable, str(Path(__file__).with_name("server.py"))], child_env)

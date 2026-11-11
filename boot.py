@@ -10,9 +10,10 @@ import tempfile
 import time
 from urllib.request import urlopen
 
-from download import download_models, manifest
+from download import download_models, manifest, valid_file
 from graph import REQUIRED_NODES
 from diagnostics import model_environment
+from regen import enabled as regen_enabled
 
 WORKSPACE = Path("/workspace")
 COMFY_PYTHON = "3.13.9"
@@ -60,6 +61,8 @@ def prepare(stage=lambda name: None):
              "assert torch.__version__ == '2.14.1+cu130'; "
              "assert torch.version.cuda == '13.0'; assert torch.cuda.is_available(); "
              "assert comfy_kitchen.registry.is_available('cuda')"])
+    if regen_enabled():
+        install_regen(source, python, uv)
     stage("download")
     download_models(source / "models")
     private = root / "private"
@@ -75,11 +78,85 @@ def prepare(stage=lambda name: None):
 
 
 def comfy_command(source, python, runtime):
-    return [str(python), str(source / "main.py"), "--listen", "127.0.0.1", "--port", "8188",
+    args = [str(python), str(source / "main.py"), "--listen", "127.0.0.1", "--port", "8188",
             "--input-directory", str(runtime / "jobs"), "--output-directory", str(runtime / "jobs"),
             "--temp-directory", str(runtime / "temp"), "--user-directory", str(runtime / "user"),
             "--disable-metadata", "--disable-all-custom-nodes", "--offline",
             "--preview-method", "none", "--disable-auto-launch"]
+    if regen_enabled():
+        args += ["--lowvram", "--whitelist-custom-nodes"] + [p["name"] for p in manifest()["regen_nodes"]]
+    return args
+
+
+def install_regen(source, python, uv):
+    """Only called during the install stage on a dedicated regeneration worker."""
+    for binary in ("ffmpeg", "ffprobe"):
+        if shutil.which(binary) is None:
+            raise RuntimeError("regen requires local media tools")
+    checkout_root = source.parent / "regen-sources"
+    checkout_root.mkdir(exist_ok=True)
+    custom = source / "custom_nodes"
+    custom.mkdir(exist_ok=True)
+    for pin in manifest()["regen_nodes"]:
+        checkout = checkout_root / pin["name"]
+        if not checkout.exists():
+            command(["git", "clone", "--filter=blob:none", "--no-checkout", pin["repository"], checkout])
+            command(["git", "-C", checkout, "checkout", "--detach", pin["commit"]])
+        if command(["git", "-C", checkout, "rev-parse", "HEAD"]) != pin["commit"]:
+            raise RuntimeError("regen node commit mismatch")
+        command(["git", "-C", checkout, "diff", "--exit-code", "HEAD", "--"])
+        package = checkout / pin["subdirectory"]
+        for asset in manifest().get("regen_node_assets", []):
+            if asset["node"] == pin["name"] and not valid_file(package / asset["path"], asset["size"], asset["sha256"]):
+                raise RuntimeError("regen node asset checksum mismatch")
+        if pin["requirements"]:
+            requirements = package / pin["requirements"]
+            # Check in the ComfyUI venv. Preserve every upstream version constraint;
+            # do not reinstall av/safetensors already supplied by the pinned stack.
+            missing = command([python, "-c", REQUIREMENTS_CHECK, requirements])
+            if missing != "satisfied":
+                command([uv, "pip", "install", "--python", python, "-r", requirements,
+                         "-c", Path(__file__).with_name("runtime-constraints.txt")])
+                if command([python, "-c", REQUIREMENTS_CHECK, requirements]) != "satisfied":
+                    raise RuntimeError("regen node dependencies unavailable")
+        link = custom / pin["name"]
+        if link.is_symlink():
+            if link.resolve() != package.resolve():
+                raise RuntimeError("regen node path mismatch")
+        elif link.exists():
+            raise RuntimeError("regen node path occupied")
+        else:
+            link.symlink_to(package, target_is_directory=True)
+
+
+REQUIREMENTS_CHECK = """
+import importlib.metadata
+from pathlib import Path
+import sys
+from packaging.requirements import Requirement
+ok = True
+for line in Path(sys.argv[1]).read_text().splitlines():
+    line = line.split('#', 1)[0].strip()
+    if not line:
+        continue
+    req = Requirement(line)
+    if req.marker and not req.marker.evaluate():
+        continue
+    try:
+        ok = ok and importlib.metadata.version(req.name) in req.specifier
+    except importlib.metadata.PackageNotFoundError:
+        ok = False
+print('satisfied' if ok else 'missing')
+"""
+
+
+def comfy_environment(env):
+    if not regen_enabled():
+        return env
+    # These are LynnReal's own controls: keep whole-clip pixels in host RAM,
+    # decode spatial tiles singly, and avoid the larger compile working set.
+    return {**env, "LYNNREAL_NO_DEVICE_VAE": "1", "LYNNREAL_NO_BATCH_VAE": "1",
+            "LYNNREAL_VAE_TILE_BATCH": "1", "LYNNREAL_NO_COMPILE_VAE": "1"}
 
 
 def wait_ready(url, children, *, nodes=False, timeout=600, clock=time.monotonic,

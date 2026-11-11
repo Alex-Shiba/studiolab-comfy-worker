@@ -180,7 +180,8 @@ async def test_body_limit(app_client):
 
 
 class FakeComfy:
-    def __init__(self, root, *, websocket=True, fail=False, hang=False):
+    def __init__(self, root, *, websocket=True, fail=False, hang=False,
+                 video_bytes=None, object_nodes=(), node_events=False):
         self.root, self.websocket, self.fail, self.hang = root, websocket, fail, hang
         self.graph = None
         self.ws = None
@@ -188,6 +189,7 @@ class FakeComfy:
         self.deleted = []
         self.interrupted = False
         self.prompt_id = "fake-prompt"
+        self.video_bytes, self.object_nodes, self.node_events = video_bytes, object_nodes, node_events
 
     def app(self):
         app = web.Application()
@@ -208,8 +210,13 @@ class FakeComfy:
             for node in self.graph.values():
                 if node["class_type"] == "LoadImage":
                     assert (self.root / node["inputs"]["image"]).is_file()
+                if node["class_type"] == "LoadVideo":
+                    assert (self.root / node["inputs"]["file"]).is_file()
             if self.ws is not None:
                 await self.ws.send_json({"type": "progress", "data": {"prompt_id": self.prompt_id, "value": 4, "max": 8}})
+                if self.node_events:
+                    for number in ("16", "17"):
+                        await self.ws.send_json({"type": "executing", "data": {"prompt_id": self.prompt_id, "node": number}})
             return web.json_response({"prompt_id": self.prompt_id, "node_errors": {}})
 
         async def history(request):
@@ -218,7 +225,7 @@ class FakeComfy:
                 return web.json_response({})
             prefix = self.graph["20"]["inputs"]["filename_prefix"]
             path = self.root / (prefix + "_00001_.mp4")
-            path.write_bytes(b"fake-comfy-video")
+            path.write_bytes(self.video_bytes if self.video_bytes is not None else b"fake-comfy-video")
             return web.json_response({self.prompt_id: {"status": {"completed": True,
                 "status_str": "error" if self.fail else "success"}, "outputs": {"20": {"images": [
                     {"filename": path.name, "subfolder": path.parent.name, "type": "output"}]}}}})
@@ -237,6 +244,7 @@ class FakeComfy:
         async def object_info(request):
             # The default text/frames graph (pika6_kitchen since 2026-11-10) is checked for its nodes before /prompt.
             return web.json_response({"MiniMaxH3SigmaShift": {}, "BlockSparseAttention": {}, "ManualSigmas": {},
+                **{kind: {} for kind in self.object_nodes},
                 "ModelAttentionBackend": {"input": {"required": {"attention": ["COMBO", {"options": ["comfy kitchen attention"]}]}}}})
 
         app.router.add_get("/ws", ws)

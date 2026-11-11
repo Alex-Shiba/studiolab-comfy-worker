@@ -133,6 +133,10 @@ def decode_image(encoded):
 
 
 def validate_start(payload):
+    if isinstance(payload, dict) and payload.get("mode") == "regen":
+        from regen import enabled, validate_regen
+        if enabled():
+            return validate_regen(payload)
     required = {"request", "mode", "prompt", "seconds", "size", "aspect", "seed", "audio"}
     if not isinstance(payload, dict) or not required <= payload.keys() or payload.keys() - required - {"first", "last", "refs", "lab"}:
         raise Invalid("missing or unknown keys")

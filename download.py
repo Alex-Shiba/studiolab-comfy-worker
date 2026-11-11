@@ -169,3 +169,10 @@ def download_reference_models(model_root, progress=lambda value: None, cancelled
 
 def download_lab_model(profile, model_root, progress=lambda value: None, cancelled=None):
     download_items(model_root, [manifest()["lab_files"][profile]], progress, cancelled)
+
+
+def download_regen_models(model_root, progress=lambda value: None, cancelled=None):
+    from regen import enabled
+    if not enabled():
+        raise RuntimeError("regen is disabled")
+    download_items(model_root, manifest()["regen_files"], progress, cancelled)

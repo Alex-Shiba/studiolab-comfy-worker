@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 import threading
 
-from download import download_reference_models, download_lab_model
+from download import download_reference_models, download_lab_model, download_regen_models
 from functools import partial
 
 
@@ -69,3 +69,8 @@ class LabModels:
 
     async def close(self):
         await asyncio.gather(*(model.close() for model in self.models.values()))
+
+
+class RegenModels(ReferenceModels):
+    def __init__(self, root, ready_file, downloader=download_regen_models):
+        super().__init__(root, ready_file, downloader)

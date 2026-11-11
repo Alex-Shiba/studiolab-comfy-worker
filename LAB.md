@@ -1,5 +1,131 @@
 # Лаборатория H3 для A/B на 5090
 
+<a id="regen"></a>
+
+## Regen: отдельный endpoint, 2026-11-11
+
+Владелец: «… надо изучить и прикрутить, я так понимаю полезная штука … сотрудники уже активно тычут и
+тестируют в наш минимакс который мы развернули на васте и реелвее, поэтому скорее всего для тестов на локалке
+стоит поднять отдельный ендпоинт, чтобы не мешать работе существующего»; «знаешь мне кажется уже сборки под
+комфи, поищи»; на план — «Да, собирай».
+
+Режим включается **только `COMFY_REGEN=1` в шаблоне отдельного лабораторного worker**. Студия не получает
+новых переключателей, основной endpoint не меняется. Вызов и ограничения — в начале [README.md](README.md).
+Неизвестные поля отвергаются; request учитывает байты исходника, промпт, seed, метод, разрешение и sigma.
+Промпт автоматически не переписывается, кроме штатного enhancement-префикса IC внутри графа.
+
+### Графы и отличия от опубликованных примеров
+
+IC: `LoadVideo → GetVideoComponents → OpenH3ICDraft`, чтение при 24 fps, 124 кадра с удержанием последнего,
+cover-resize и центральный crop 1344×768. До очереди проверяются 113–124 реальных кадра: длина >124 не
+усекается молча. `OpenH3ICPrompt` передаёт исходное описание как Scene description; черновик становится
+`ref_videos.ref_video_0` в `MiniMaxH3ReferenceToVideo`. Отдельный `VAEEncode` и штатные
+`LatentUpscaleModelLoader → MiniMaxH3LatentUpscaleWithModel` создают целевой видеолатент.
+`OpenH3ICComposeLatent` добавляет официальный silence-латент и маскирует аудио.
+Порядок LoRA: **HyperFlow 8-step pruned → LMS Sharp → IC**, все strength=1; shift video/audio **12/3**,
+`BasicGuider` (CFG 1), Euler, `OpenH3ICSigmas(up3)`:
+`0.834942, 0.696852, 0.468753, 0`. Две размерные ноды получают 1920×1088 либо 2560×1440.
+
+Выбрана существующая **Ref2VA pruned INT8**, BF16-файл на 66 280 487 368 байт не добавляется.
+HTTP Range-чтением заголовков проверены все **208 IC, 208 HyperFlow pruned и 258 LMS** пары A/B:
+каждый целевой ключ существует, размеры совпадают с INT8-базой. LMS содержит AdaLN A размера `[64,8]`;
+у pruned-базы соответствующая матрица `[96768,8]`, у full BF16 — `[96768,2688]`.
+Слепая замена на BF16 не обеспечивает совместимость этой цепочки.
+Использован опубликованный standalone **pruned HyperFlow** для штатного LoRA-loader, без time-embedder
+адаптеров, которых нет в pruned-базе. Это **экспериментальное отличие** от BF16-примера slmonker и от
+полного HyperFlow с двухвременным conditioning. Проверка форм не доказывает численную эквивалентность
+или качество; автор IC проверял свою конверсию на BF16, а не этот INT8-вариант.
+
+Refine: `OpenH3RegenPrepareDraft` (768p, все разрешённые кадры, 24 fps, паддинг до `17k+5`) → VAE encode →
+`OpenH3RegenUpscale` с LBH 3D → `OpenH3RegenRefineLatent` с кодированным молчанием → три шага Euler, CFG 1.
+База — прежняя FL2VA INT8. `OpenH3RegenLora` применяет **полный NVIDIA rank-576 merge** и все Sharp curve
+branches, strength=curve_strength=1, факторы в BF16; таблица берётся из существующей Ref2VA INT8.
+`CLIPTextEncode` получает исходный промпт. SOL повторяет опубликованный Draft Video workflow:
+tau=1,2, start=0, end=0,9, dense blocks `0,1,49`, min_tokens=12288, extra_tokens=256,
+`sink_conditioning=exact_kv_and_rows`; выключен только диагностический verbose.
+Штатная release-сетка сборки — `0.909375, 0.857142857, 0.666666667, 0`.
+По brief выбран `start_sigma=0.8`; нода вычисляет **shift-6** сетку `0.8, 0.666666667, 0.444444444, 0`.
+Переданные значения 0,5–0,95 используют тот же алгоритм. Sigma-shift модели поверх него не добавляется.
+
+В обоих графах sampler остаётся узлом `16`, SaveVideo — `20`: прежние измерения и поиск результата работают.
+Перед `/prompt` проверяются все классы графа, а для refine ещё скрытая зависимость `MinimaxH3LatentUpscaler3D`.
+Отсутствие узла завершает задачу понятной ошибкой, следующий запрос остаётся возможным.
+`OpenH3RegenFinish` отсекает паддинг и центрирует 1088→1080. После SaveVideo `ffmpeg` копирует видеопоток
+и **исходные сжатые аудиопакеты** в итоговый MP4, ограничивая длительность исходником. Немой черновик
+остаётся немым. Имена файлов генерирует сервер, внешние протоколы при проверке/mux отключены.
+
+Из исходных примеров исключены генератор промпта через LLM, Preview-ноды и сохранение latent вне каталога
+задачи: промпт уже предоставлен, дополнительные сетевые вызовы не нужны, артефакты подчиняются прежнему TTL.
+T2VA-черновик, 4K, VHS, Spark, DMAD и дополнительный HyperFlow custom node не добавлялись.
+
+### Память и обнаруженные несовместимости
+
+ComfyUI сохраняет своё динамическое управление памятью/offload; `--lowvram` добавлен для пути без dynamic VRAM.
+Разрешены только четыре именованных custom node каталога через `--disable-all-custom-nodes` + whitelist.
+Полная копия LynnReal-Omni закреплена отдельно; в custom_nodes подключён только её подкаталог
+`comfyui/custom_nodes/ComfyUI-LynnReal`. Установка не запускает сторонние install-скрипты.
+Python requirements проверяются в ComfyUI venv; `uv pip install -r … -c runtime-constraints.txt` вызывается
+только при неудовлетворённых требованиях. В закреплённых пакетах дополнительные requirements — `av`,
+`safetensors`; IC перечисляет их как уже поставляемые ComfyUI, LynnReal/LBH отдельного файла не имеют.
+
+При проверке исходников выяснилось:
+
+- HEAD h3regen `0979f5723ceea842ddb0bf6b5723d7d13ec2634e` требует `spatial_batch` у обычного fast-decode,
+  хотя его нет в INPUT_TYPES. Закреплён предыдущий рабочий интерфейс `9b686c5ffd380e9d1351f9b8beef6d20d703ca3e`.
+- Опубликованный IC-граф передаёт fast VAE в LynnRealH3VAELoader, но закреплённый загрузчик требует
+  `decoder.transformer_blocks.*`, а fast-файлы имеют `blocks.*`. Поэтому **fast decode обоих методов**
+  выполняет `OpenH3RegenFastVAEDecode`; у IC свой NVIDIA v2 24L, у refine — noncausal 24L.
+  У двух файлов все 297 имён/форм тензоров одинаковы, SHA-256 различаются; веса не подменяются друг другом.
+- Tiled fallback h3regen вызывает `vae.decode` напрямую и не распаковывает AV NestedTensor.
+  Перед fast decode добавлен **штатный `LTXVSeparateAVLatent`**, пригодный и для H3: decoder получает
+  только видеотензор, включая путь fallback. Это не новый custom node.
+
+Fast VAE: `keep_loaded=false`, освобождение модели/offload перед следующей работой, подключён обязательный
+для нашего графа вход `vae` для fallback. IC fallback загружается LynnRealH3VAELoader из прежнего video VAE:
+tile=256, overlap=64, compile=false; refine использует прежний VAELoader с внутренним H3 tiling.
+Только в окружении лабораторного ComfyUI заданы `LYNNREAL_NO_DEVICE_VAE=1`, `LYNNREAL_NO_BATCH_VAE=1`,
+`LYNNREAL_VAE_TILE_BATCH=1`, `LYNNREAL_NO_COMPILE_VAE=1`, чтобы не держать весь результат на GPU и
+не декодировать все плитки одним batch. LBH upscale у refine включает `temporal_chunking=true` и использует
+встроенный в сборку `force_unload=true`. IC сохраняет штатный ComfyUI latent upscaler.
+
+Это настройки для первого испытания 2K на 32 GB, **не результат измерения вместимости**. Исходный автор
+refine измерил fast decode 15 с / 2K около 45 GB, поэтому tiled fallback необходим. Для RAM оставлен запас
+128 GB, для диска рекомендуется от 180 GB: все базовые, reference и regen веса суммарно
+**103 301 296 855 байт**, плюс временные сегменты/сборка, окружение и MP4.
+
+### Закрепление и проверка
+
+Полный перечень файлов и SHA-256: [model-manifest.json](model-manifest.json), группы `regen_files`,
+`regen_nodes`, `regen_node_assets`; сетевые ответы сведены в [regen-evidence.json](regen-evidence.json).
+Новые восемь файлов весят **38 344 709 904 байта**. Silence-латент внутри IC git-пакета — **26 768 байт**,
+SHA-256 `dc90d8b8505f7160110b4122fb78348b232877e2928f7049c6833dcebde3f18c`; boot проверяет его отдельно.
+Размеры и SHA-256 весов взяты из HF LFS-метаданных, git commits — из GitHub API; значения не подбирались.
+
+| Пакет узлов | Полный commit / источник |
+| --- | --- |
+| IC | [a85bd9664a752637c5ec88bf4b1930b4688fc251](https://github.com/slmonker/ComfyUI-OpenH3Regenerate2KIC/commit/a85bd9664a752637c5ec88bf4b1930b4688fc251) |
+| LynnReal | [ad16ac787430bd22456ee55f018764cf53c25935](https://github.com/LynnReal-AI/LynnReal-Omni/commit/ad16ac787430bd22456ee55f018764cf53c25935) |
+| h3regen | [9b686c5ffd380e9d1351f9b8beef6d20d703ca3e](https://github.com/goofyrodent/h3regen/commit/9b686c5ffd380e9d1351f9b8beef6d20d703ca3e) |
+| LBH | [f34cadb19f10fee7e36091b690cac39b4eb40573](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler/commit/f34cadb19f10fee7e36091b690cac39b4eb40573) |
+
+| Веса | Репозиторий / revision |
+| --- | --- |
+| IC LoRA | [slmonker / 7d6e5e288e9ff9d6f6812abb6540e84327fa74bf](https://huggingface.co/slmonker/Open-H3-Regenerate-2K-IC-ComfyUI/tree/7d6e5e288e9ff9d6f6812abb6540e84327fa74bf) |
+| HyperFlow pruned | [drbaph / bb2bc497cbaca89dadd0bcf1856eed4f8275be20](https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI/tree/bb2bc497cbaca89dadd0bcf1856eed4f8275be20) |
+| LMS Sharp, fast VAE v2 | [NVIDIA IC / 54a7104b204fb46486cf85c2f600942118186d57](https://huggingface.co/Efficient-Large-Model/Open-H3-Regenerate-2K-IC/tree/54a7104b204fb46486cf85c2f600942118186d57) |
+| Rank-576 refiner, Sharp curves, 3D upscaler, fast VAE noncausal | [NVIDIA refine / 50c09cf1df5f9262b9279868c1c666bd5fe3476b](https://huggingface.co/Efficient-Large-Model/Open-H3-Regenerate-2K/tree/50c09cf1df5f9262b9279868c1c666bd5fe3476b) |
+
+Исходные workflows и ссылки на проверенные заголовки перечислены в `regen-evidence.json`.
+Тесты: неизменный выключенный boot/download/modes, четыре git checkout, зависимости, контрольные суммы,
+строгая валидация, реальные границы кадров, графы и память, отказ до `/prompt`, ожидание READY/повтор загрузки,
+IC/refine × 1080p/2K через **существующий FakeComfy**, настоящий mux с проверкой хеша аудиопакетов и длины.
+Прежние тесты сохраняют поведение; FakeComfy расширен необязательными параметрами.
+
+До первого живого запуска не проверены: Linux clone/venv install, загрузка всех больших весов, импорт четырёх
+пакетов вместе, применение LoRA на GPU, фактический fallback/OOM, пики VRAM/RAM, скорость и качество,
+сохранение лиц/деталей/движения, сопоставление IC INT8 с опубликованным BF16-примером.
+Нужны Opus-review и проба на отдельной 5090; текущие платные endpoint не трогались, commit/push отсутствуют.
+
 Необязательное поле `lab` принимает только worker `/clip/start`. Студия его не отправляет.
 Решение владельца от 2026-11-10 после третьего A/B: «pika6_kitchen_sol», затем «не, давай все таки pika6_kitchen )) она лучше и красивше». Прежний t4 показался «немного такая знаешь пластиковая». Без `lab` или с `lab={}` text/frames используют Pika Flex LoRA (`pika6`), 6 шагов, фиксированные сдвиги 12/3, `lcm`, `ManualSigmas` и Kitchen INT8, без SOL. Непустой `lab` сохраняет прежние значения пропущенных ключей; refs не изменён. `turbo4_768` остаётся лабораторным профилем.
 
