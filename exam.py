@@ -117,7 +117,9 @@ def upload_mb_s(megabytes=16, *, url=UPLOAD_SINK, opener=urlopen, clock=time.mon
     """Megabytes a second of a plain upload to a public speed sink; None when it cannot be measured (never a reason to fail)."""
     body = os.urandom(megabytes * MIB)
     try:
-        request = Request(url, data=body, method="POST", headers={"Content-Type": "application/octet-stream"})
+        # The sink refuses Python's default client name (403, seen 2026-11-12): a plain name of our own passes.
+        request = Request(url, data=body, method="POST",
+                          headers={"Content-Type": "application/octet-stream", "User-Agent": "machine-exam/1"})
         started = clock()
         with opener(request, timeout=45) as response:
             response.read()

@@ -89,7 +89,10 @@ def examine(log, *, measure=exam.measure, env=None):
     """The first minute's look at the machine; returns its numbers or raises ExamFailed. The line it logs carries only numbers."""
     facts = measure(WORKSPACE, manifest(), WORKSPACE / "studiolab-comfy" / "ComfyUI" / "models", env=env)
     reason = exam.verdict(facts, env)
-    log(exam.marker(facts, reason))
+    line = exam.marker(facts, reason)
+    log(line)
+    # The marker file is the SDK's; this copy goes to the container's own output, so the exam is read in Vast's instance log too.
+    print(line, flush=True)
     if reason:
         raise ExamFailed(reason)
     return facts

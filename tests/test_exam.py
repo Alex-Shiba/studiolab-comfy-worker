@@ -94,12 +94,13 @@ def test_upload_is_measured_and_never_raises():
     sent = {}
 
     def opener(request, timeout):
-        sent["bytes"], sent["method"] = len(request.data), request.get_method()
+        sent["bytes"], sent["method"], sent["client"] = len(request.data), request.get_method(), request.get_header("User-agent")
         return Response(200, b"ok")
 
     clock = iter([5.0, 7.0])
     assert exam.upload_mb_s(megabytes=4, opener=opener, clock=lambda: next(clock)) == 2.0
-    assert sent == {"bytes": 4 * exam.MIB, "method": "POST"}
+    # The sink refuses Python's default client name, so the request names its own.
+    assert sent == {"bytes": 4 * exam.MIB, "method": "POST", "client": "machine-exam/1"}
     assert exam.upload_mb_s(megabytes=1, opener=lambda r, timeout: Response(503)) is None
     assert exam.upload_mb_s(megabytes=1, opener=lambda r, timeout: (_ for _ in ()).throw(OSError())) is None
 
@@ -153,10 +154,12 @@ def test_the_line_and_the_state_answer_carry_numbers_only():
     assert exam.from_environment({"COMFY_MACHINE": "not json"}) == {} and exam.from_environment({}) == {}
 
 
-def test_a_machine_that_cannot_boot_is_refused_before_the_install():
+def test_a_machine_that_cannot_boot_is_refused_before_the_install(capsys):
     lines = []
     good = worker.examine(lines.append, measure=lambda *args, env=None: facts(), env={})
     assert good["ram_gb"] == 125.0 and lines[-1].startswith("COMFY_EXAM {")
+    # The same line reaches the container's output, where Vast's instance log shows it.
+    assert capsys.readouterr().out.strip() == lines[-1]
     with pytest.raises(worker.ExamFailed, match="download"):
         worker.examine(lines.append, measure=lambda *args, env=None: facts(down_mb_s=5.0), env={})
     assert lines[-1].startswith("COMFY_EXAM_FAILED download {")
