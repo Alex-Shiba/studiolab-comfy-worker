@@ -26,7 +26,9 @@ MAX_IMAGE_BASE64 = 4 * ((MAX_IMAGE_BYTES + 2) // 3)
 MAX_IMAGE_PIXELS = 16_777_216
 MAX_IMAGE_EDGE = 8192
 MAX_BODY_BYTES = 4 * MAX_IMAGE_BASE64 + 65536
-TTL_S = 1800
+# A finished job and its file stay this long. Half an hour until 2026-11-12: a clip made on a far-away machine was lost when the studio could
+# not fetch it in that time. The machine's life is still decided by its idle limit, so the longer keep costs disk only.
+TTL_S = 3600
 ID_PATTERN = re.compile(r"[0-9a-f]{32}\Z")
 
 
