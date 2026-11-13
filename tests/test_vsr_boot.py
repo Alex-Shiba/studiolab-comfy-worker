@@ -93,6 +93,9 @@ def test_install_selects_gpu_kernels(vsr_provision, monkeypatch, kernels):
         result = original(args)
         if any("get_device_capability" in str(x) for x in args):
             assert any("cc >= (7, 5)" in str(x) and "cc >= (8, 0)" in str(x) for x in args)
+            # Fast kernels only when comfy-kitchen really has both fused kernels the pack calls without a fallback.
+            assert any("hasattr(ck, name)" in str(x) and "'window_attention'" in str(x) and "'apply_rope1'" in str(x)
+                       and "and fused" in str(x) for x in args)
             return kernels
         return result
     monkeypatch.setattr(boot, "command", command)

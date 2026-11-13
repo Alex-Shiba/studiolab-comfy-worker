@@ -51,7 +51,10 @@ PCM и другие кодеки отклоняются до декодиров�
   Выбраны int8 ConvRot, FlashDecoder, `color_fix=none`, внутренний `seed=42`, `kv_offload=false`, `encoder=auto`.
   У опубликованного API-шаблона transformer — bf16; int8 здесь выбран явно.
   Вход `kernels` задаёт ускорение: install проверяет GPU в ComfyUI venv и выбирает `fast` при CC ≥8.0,
-  `exact` при CC 7.5; более старые GPU не проходят установку VSR.
+  `exact` при CC 7.5; более старые GPU не проходят установку VSR. `fast` берётся только когда в установленном
+  comfy-kitchen есть оба ядра, которые пакет зовёт без запасного пути (`window_attention`, `apply_rope1`):
+  первый живой запуск 2026-11-13 упал на `module 'comfy_kitchen' has no attribute 'window_attention'` —
+  ComfyUI v0.44.0 закрепляет comfy-kitchen 0.2.40, где этого ядра нет. До обновления ComfyUI режим идёт на `exact`.
 - В штатном ComfyUI commit `2c75dc1b379a59e0880619d029607af5169a62ef` проверены
   `LoadVideo(file)` и `SaveVideo(video,filename_prefix,format=mp4,format.codec=auto)`.
   Узел модели использует ID `16` для измерения, сохранение — `20`. Непроверенных входов графа нет.

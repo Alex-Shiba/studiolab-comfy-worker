@@ -107,9 +107,13 @@ def install_vsr(source, python, uv):
     install_nodes(source, python, uv, "vsr")
     if command([python, "-c", VSR_VERSIONS_CHECK, Path(__file__).with_name("vsr-constraints.txt")]) != "satisfied":
         raise RuntimeError("vsr installed dependency versions mismatch; expected vsr-constraints.txt pins")
-    kernels = command([python, "-c", "import torch; cc = torch.cuda.get_device_capability(); "
+    # The pack's «fast» kernels call comfy-kitchen's window_attention and apply_rope1 with no fallback; the
+    # comfy-kitchen that ComfyUI v0.44.0 pins (0.2.40) has no window_attention (first live run, 2026-11-13:
+    # AttributeError in the FlashDecoder). «exact» never calls them: fast only when both kernels exist.
+    kernels = command([python, "-c", "import torch, comfy_kitchen as ck; cc = torch.cuda.get_device_capability(); "
                        "assert cc >= (7, 5), 'VSR int8 requires CC 7.5'; "
-                       "print('fast' if cc >= (8, 0) else 'exact')"])
+                       "fused = all(hasattr(ck, name) for name in ('window_attention', 'apply_rope1')); "
+                       "print('fast' if cc >= (8, 0) and fused else 'exact')"])
     if kernels not in ("fast", "exact"):
         raise RuntimeError("vsr GPU capability unavailable")
     os.environ["COMFY_VSR_KERNELS"] = kernels
