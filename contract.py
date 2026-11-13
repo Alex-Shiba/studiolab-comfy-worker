@@ -135,6 +135,10 @@ def decode_image(encoded):
 
 
 def validate_start(payload):
+    if isinstance(payload, dict) and payload.get("mode") == "vsr":
+        from vsr import enabled, validate_vsr
+        if enabled():
+            return validate_vsr(payload)
     if isinstance(payload, dict) and payload.get("mode") == "regen":
         from regen import enabled, validate_regen
         if enabled():

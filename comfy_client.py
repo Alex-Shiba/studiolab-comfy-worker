@@ -111,6 +111,8 @@ class ComfyClient:
         optional = kinds & {"ModelAttentionBackend", "BlockSparseAttention", "MiniMaxH3SigmaShift", "ManualSigmas"}
         if any(kind.startswith("OpenH3") for kind in kinds):
             optional = kinds | {"MinimaxH3LatentUpscaler3D"} if "OpenH3RegenUpscale" in kinds else kinds
+        if "ReCaVSRUpscale" in kinds:
+            optional = kinds
         if not optional:
             return
         info = await self.json("GET", "/object_info")

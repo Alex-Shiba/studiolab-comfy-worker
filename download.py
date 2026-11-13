@@ -176,3 +176,10 @@ def download_regen_models(model_root, progress=lambda value: None, cancelled=Non
     if not enabled():
         raise RuntimeError("regen is disabled")
     download_items(model_root, manifest()["regen_files"], progress, cancelled)
+
+
+def download_vsr_models(model_root, progress=lambda value: None, cancelled=None):
+    from vsr import enabled
+    if not enabled():
+        raise RuntimeError("vsr is disabled")
+    download_items(model_root, manifest()["vsr_files"], progress, cancelled)

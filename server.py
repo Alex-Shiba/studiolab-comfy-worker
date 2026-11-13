@@ -2,7 +2,7 @@
 
 import asyncio
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import io
 import os
 from pathlib import Path
@@ -16,8 +16,9 @@ from aiohttp import web
 from comfy_client import ComfyClient, LabUnavailable
 from contract import FPS, ID_PATTERN, Invalid, MAX_BODY_BYTES, TTL_S, save_frame, strict_json, validate_id, validate_start
 from graph import build_graph
-from reference_models import ReferenceModels, LabModels, RegenModels
+from reference_models import ReferenceModels, LabModels, RegenModels, VsrModels
 from regen import enabled as regen_enabled, finish_video
+from vsr import Video, clear_temporary_videos, enabled as vsr_enabled, finish_video as finish_vsr_video
 from lab import validate_lab
 from self_destruct import IdleRetirement
 from exam import from_environment as machine_facts
@@ -47,6 +48,10 @@ class Job:
     sampler_s: float | None = None
     lab: dict | None = None
     regen: dict | None = None
+    vsr: dict | None = None
+    video: Video | None = None
+    model_s: float | None = None
+    fps: float = FPS
     draft: Path | None = None
     duration: float | None = None
     error: str | None = None
@@ -57,8 +62,10 @@ class Job:
     request: str | None = None
 
     def public(self):
-        result = {"state": self.state, "progress": self.progress, "fps": FPS}
-        for key in ("width", "height", "frames", "exec_s", "sampler_s", "lab", "regen", "error", "stage"):
+        result = {"state": self.state, "progress": self.progress, "fps": self.fps}
+        if self.video:
+            result["frame_rate"] = str(self.video.fps)
+        for key in ("width", "height", "frames", "exec_s", "sampler_s", "model_s", "lab", "regen", "vsr", "error", "stage"):
             value = getattr(self, key)
             if value is not None:
                 result[key] = value
@@ -66,12 +73,14 @@ class Job:
 
 
 class JobManager:
-    def __init__(self, backend, root, retirement, *, clock=time.monotonic, benchmark_id=None, reference_models=None, lab_models=None, regen_models=None):
+    def __init__(self, backend, root, retirement, *, clock=time.monotonic, benchmark_id=None, reference_models=None, lab_models=None, regen_models=None, vsr_models=None, vsr_temp=None):
         self.backend, self.root, self.retirement, self.clock = backend, Path(root), retirement, clock
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.reference_models = reference_models
         self.lab_models = lab_models
         self.regen_models = regen_models
+        self.vsr_models = vsr_models
+        self.vsr_temp = vsr_temp
         self.preparing = set()
         self.jobs = {}
         self.requests = {}
@@ -109,11 +118,15 @@ class JobManager:
         directory.mkdir(mode=0o700)
         width, height = clip.dimensions
         job = Job(job_id, directory, width=width, height=height, frames=clip.frames, request=clip.request,
-                  lab=None if clip.mode == "regen" else (clip.lab or validate_lab({}, clip.mode)).public(),
-                  regen=clip.regen.public() if clip.mode == "regen" else None)
+                  lab=None if clip.mode in ("regen", "vsr") else (clip.lab or validate_lab({}, clip.mode)).public(),
+                  regen=clip.regen.public() if clip.mode == "regen" else None,
+                  vsr=clip.vsr.public() if clip.mode == "vsr" else None)
+        if clip.mode == "vsr":
+            job.video = replace(clip.video, data=b"")
+            job.fps = float(clip.video.fps)
         try:
             names = {}
-            if clip.mode == "regen":
+            if clip.mode in ("regen", "vsr"):
                 name = uuid.uuid4().hex + ".mp4"
                 job.draft = directory / name
                 job.draft.write_bytes(clip.video.data)
@@ -136,14 +149,35 @@ class JobManager:
         self.requests[clip.request] = (clip.fingerprint(), job_id)
         self.active += 1
         self.retirement.job_started()
-        if clip.mode == "regen" or clip.mode == "refs" or job.lab["lora"] in ("turbo8_768", "turbo8_544", "turbo4_768"):
-            task = asyncio.create_task(self.prepare_regen(job, graph) if clip.mode == "regen"
+        if clip.mode in ("regen", "vsr", "refs") or job.lab["lora"] in ("turbo8_768", "turbo8_544", "turbo4_768"):
+            task = asyncio.create_task(self.prepare_vsr(job, graph) if clip.mode == "vsr"
+                                       else self.prepare_regen(job, graph) if clip.mode == "regen"
                                        else self.prepare_references(job, graph, clip.mode == "refs"))
             self.preparing.add(task)
             task.add_done_callback(self.preparing.discard)
         else:
             self.queue.put_nowait((job, graph))
         return job
+
+    async def prepare_vsr(self, job, graph):
+        job.stage = "downloading_vsr_models"
+        try:
+            if self.vsr_models is None:
+                raise RuntimeError("vsr models unavailable")
+            await self.vsr_models.wait(lambda value: setattr(job, "progress", value))
+            job.stage, job.progress = None, 0.0
+            self.queue.put_nowait((job, graph))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            job.error = "vsr model download failed; retry the job"
+            job.state, job.stage = "failed", None
+            job.finished_at = self.clock()
+            self.active -= 1
+            self.retirement.job_finished()
+            for path in job.directory.iterdir():
+                path.unlink()
+            graph.clear()
 
     async def prepare_regen(self, job, graph):
         job.stage = "downloading_regen_models"
@@ -213,6 +247,8 @@ class JobManager:
             job, graph = await self.queue.get()
             started = self.clock()
             job.state, job.progress = "running", .05
+            if job.vsr:
+                job.stage = "running"
 
             def progress(value):
                 job.progress = max(job.progress, min(.99, value))
@@ -221,6 +257,9 @@ class JobManager:
                 job.file = await self.backend.render(graph, job.directory, progress)
                 if job.regen:
                     job.file = await asyncio.to_thread(finish_video, job.file, job.draft, job.duration)
+                if job.vsr:
+                    job.stage = "finishing"
+                    job.file = await asyncio.to_thread(finish_vsr_video, job.file, job.draft, job.video, job.vsr)
                 job.state, job.progress = "done", 1.0
             except asyncio.CancelledError:
                 raise
@@ -230,7 +269,18 @@ class JobManager:
                 job.state, job.error = "failed", "generation failed"
                 job.file = None
             finally:
-                job.sampler_s = getattr(self.backend, "sampler_s", None)
+                if job.vsr:
+                    job.model_s = getattr(self.backend, "sampler_s", None)
+                    job.stage = None
+                    # The pack saves an intermediate outside the job directory.
+                    # Do not touch a file if an interrupted backend failed to settle.
+                    if self.backend.healthy:
+                        try:
+                            clear_temporary_videos(self.vsr_temp)
+                        except (OSError, RuntimeError):
+                            job.state, job.error, job.file = "failed", "vsr temporary cleanup failed", None
+                else:
+                    job.sampler_s = getattr(self.backend, "sampler_s", None)
                 # ComfyUI no longer needs keyframes or partial/failed outputs.
                 for path in job.directory.iterdir():
                     if path != job.file and path.is_file():
@@ -295,6 +345,8 @@ def make_app(manager):
                 await manager.lab_models.close()
             if manager.regen_models:
                 await manager.regen_models.close()
+            if manager.vsr_models:
+                await manager.vsr_models.close()
             for job in list(manager.jobs.values()):
                 manager.remove(job)
 
@@ -393,7 +445,10 @@ async def serve():
                                                                   os.environ["COMFY_READY_FILE"]),
                                  lab_models=LabModels(os.environ["COMFY_MODEL_ROOT"], os.environ["COMFY_READY_FILE"]),
                                  regen_models=RegenModels(os.environ["COMFY_MODEL_ROOT"], os.environ["COMFY_READY_FILE"])
-                                 if regen_enabled() else None)
+                                 if regen_enabled() else None,
+                                 vsr_models=VsrModels(os.environ["COMFY_MODEL_ROOT"], os.environ["COMFY_READY_FILE"])
+                                 if vsr_enabled() else None,
+                                 vsr_temp=Path(os.environ["COMFY_JOB_ROOT"]).parent / "temp" / "recavsr")
             runner = web.AppRunner(make_app(manager), access_log=None)
             await runner.setup()
             await web.TCPSite(runner, "127.0.0.1", 18001).start()

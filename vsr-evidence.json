@@ -1,0 +1,92 @@
+{
+  "checked": "2026-11-13",
+  "nodes": [
+    {
+      "name": "ComfyUI-ReCaVSR",
+      "repository": "https://github.com/PedroMarinhoDev/ComfyUI-ReCaVSR.git",
+      "commit": "831769467c89b35ee47926189ac8189be63883d1",
+      "subdirectory": ".",
+      "requirements": "requirements.txt"
+    }
+  ],
+  "weights": [
+    {
+      "repository": "PedroMarinhoDev/ReCaVSR-ComfyUI",
+      "revision": "2fffebd4413433ad4b8be7aec44b7fb60c897d6a",
+      "source_path": "recavsr/transformer_int8_convrot.safetensors",
+      "path": "recavsr/transformer_int8_convrot.safetensors",
+      "size": 6266935048,
+      "sha256": "70f77ac653a29dcab8cb8d5f5300acf27d9a3a45e9baf273fa4526fa43f66c9d"
+    },
+    {
+      "repository": "kopper/ReCaVSR",
+      "revision": "9c874580eedeea516f31ee1f7c562a311dbf9cf7",
+      "source_path": "flashdecoder.safetensors",
+      "path": "recavsr/flashdecoder.safetensors",
+      "size": 228723776,
+      "sha256": "f4feb3e7b0b65f98e15bb709a1ba28dfaada7c06bf7fc0ce4cdbcb58803034e8"
+    },
+    {
+      "repository": "kopper/ReCaVSR",
+      "revision": "9c874580eedeea516f31ee1f7c562a311dbf9cf7",
+      "source_path": "prompt.safetensors",
+      "path": "recavsr/prompt.safetensors",
+      "size": 4194392,
+      "sha256": "325ee3b5ec7d8bd43bc7ab186be5272dec0877c04e7c01a46fd0893260c9c6a5"
+    }
+  ],
+  "sources": [
+    "https://api.github.com/repos/PedroMarinhoDev/ComfyUI-ReCaVSR/commits/HEAD",
+    "https://github.com/PedroMarinhoDev/ComfyUI-ReCaVSR/blob/831769467c89b35ee47926189ac8189be63883d1/nodes.py",
+    "https://github.com/PedroMarinhoDev/ComfyUI-ReCaVSR/blob/831769467c89b35ee47926189ac8189be63883d1/example_workflows/recavsr_video_4x_api.json",
+    "https://github.com/PedroMarinhoDev/ComfyUI-ReCaVSR/blob/831769467c89b35ee47926189ac8189be63883d1/recavsr/video_io.py",
+    "https://github.com/PedroMarinhoDev/ComfyUI-ReCaVSR/blob/831769467c89b35ee47926189ac8189be63883d1/requirements.txt",
+    "https://github.com/Comfy-Org/ComfyUI/blob/2c75dc1b379a59e0880619d029607af5169a62ef/comfy_extras/nodes_video.py",
+    "https://huggingface.co/api/models/PedroMarinhoDev/ReCaVSR-ComfyUI/revision/2fffebd4413433ad4b8be7aec44b7fb60c897d6a?blobs=true",
+    "https://huggingface.co/api/models/kopper/ReCaVSR/revision/9c874580eedeea516f31ee1f7c562a311dbf9cf7?blobs=true"
+  ],
+  "requirements": [
+    "triton",
+    "opencv-python-headless"
+  ],
+  "unverified_node_inputs": [],
+  "notes": [
+    "Hub LFS metadata only; no weights fetched.",
+    "FileFrames retains the rational video frame rate; Writer re-encodes audio as AAC.",
+    "Loader requires prompt and FlashDecoder beside the transformer; no Wan VAE for this graph.",
+    "Template defaults to bf16; this worker explicitly selects int8 ConvRot.",
+    "SaveVideo uses the pinned core DynamicCombo format.codec input.",
+    "Fast kernels require CC 8.0+; VSR provisioning checks CC, selects fast at 8.0+, exact at 7.5 and rejects older GPUs.",
+    "Round 2: package metadata only; no wheels downloaded or packages installed. VSR-only exact constraints supplement runtime-constraints.txt; installed versions are checked before resolution and after installation. Regen dependency commands are unchanged."
+  ],
+  "dependency_pins": {
+    "triton": {
+      "version": "3.8.0",
+      "sources": [
+        "https://download-r2.pytorch.org/whl/cu130/torch-2.14.1%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl.metadata",
+        "https://pypi.org/pypi/triton/json",
+        "https://pypi.org/pypi/triton/3.8.0/json"
+      ],
+      "torch_metadata_sha256": "f50fae9c2fd1e1d1e22f52426296a598741c51378935d0905c2c60288671729a",
+      "torch_requires_dist": "triton~=3.8.0; platform_system == \"Linux\" and python_version < \"3.15\"",
+      "requires_python": "<3.15,>=3.10",
+      "wheel": "triton-3.8.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "1f0497218e26b7d79773ad9c2a3fa3b539ee69f587a13fac2e552b1d322a8015",
+      "reason": "Torch already requires the 3.8 series on Linux CPython 3.13; 3.8.0 is its only published 3.8.x release on the check date. Pin the same version; do not upgrade to 3.9."
+    },
+    "opencv-python-headless": {
+      "version": "5.0.0.93",
+      "sources": [
+        "https://pypi.org/pypi/opencv-python-headless/5.0.0.93/json"
+      ],
+      "requires_python": ">=3.6",
+      "requires_dist": [
+        "numpy<2.0; python_version < \"3.9\"",
+        "numpy>=2; python_version >= \"3.9\""
+      ],
+      "wheel": "opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl",
+      "wheel_sha256": "ed709fdf9aa0bd1f2ed8549e71d19449b03a675bb581eb292285f6861953be37",
+      "reason": "The cp37-abi3 Linux x86-64 wheel supports CPython 3.13; its numpy>=2 requirement admits the runtime pin numpy==2.5.4."
+    }
+  }
+}

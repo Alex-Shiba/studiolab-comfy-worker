@@ -80,6 +80,33 @@ def media_command(args, *, timeout=60):
                           check=True, timeout=timeout, env=model_environment(os.environ)).stdout
 
 
+def probe_video(path, *, timing=False, metadata_only=False, max_frames=901, timeout=60, metadata=None):
+    """Inspect a local MP4 only; optionally decode its video timestamps for CFR checks."""
+    entries = "stream=codec_type,width,height,avg_frame_rate,nb_read_frames,duration:format=duration"
+    if metadata_only:
+        entries += ":stream=codec_name,nb_frames,time_base,duration_ts,start_pts:format=start_time"
+    if timing:
+        # Select video so audio packets cannot exhaust the read budget. One extra
+        # packet detects excess frames; never trust the container count alone.
+        if not isinstance(max_frames, int) or not 1 <= max_frames <= 901:
+            raise ValueError("invalid timing probe frame limit")
+        if metadata is None:
+            metadata = probe_video(path, metadata_only=True, timeout=timeout)
+        entries += ":stream=time_base,duration_ts,start_pts:format=start_time:frame=media_type,best_effort_timestamp,pkt_duration"
+        entries += ":frame_side_data="
+    result = json.loads(media_command([
+        "ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov",
+        *([] if metadata_only else ["-count_frames"]),
+        *(["-select_streams", "v:0", "-read_intervals", f"%+#{max_frames}", "-show_frames"] if timing else []),
+        "-show_entries", entries, "-of", "json", str(path)], timeout=timeout))
+    if timing:
+        videos = iter(result["streams"])
+        result["streams"] = [{**s, **next(videos, {})} if s["codec_type"] == "video" else s
+                             for s in metadata["streams"]]
+        result["format"] = metadata.get("format", {})
+    return result
+
+
 def inspect_draft(raw, method):
     # Decode/count real frames, not the untrusted container's nb_frames field. Limit
     # protocols to local files so an uploaded container cannot cause network reads.
@@ -88,11 +115,7 @@ def inspect_draft(raw, method):
         with tempfile.TemporaryDirectory(prefix="regen-probe-") as directory:
             path = Path(directory) / "draft.mp4"
             path.write_bytes(raw)
-            info = json.loads(media_command([
-                "ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov",
-                "-count_frames", "-show_entries",
-                "stream=codec_type,width,height,avg_frame_rate,nb_read_frames,duration:format=duration",
-                "-of", "json", str(path)]))
+            info = probe_video(path)
         videos = [s for s in info["streams"] if s["codec_type"] == "video"]
         if len(videos) != 1:
             raise Invalid("video must contain one video stream")

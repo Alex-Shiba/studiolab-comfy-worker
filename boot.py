@@ -14,6 +14,7 @@ from download import download_models, manifest, valid_file
 from graph import REQUIRED_NODES
 from diagnostics import model_environment
 from regen import enabled as regen_enabled
+from vsr import enabled as vsr_enabled
 
 WORKSPACE = Path("/workspace")
 COMFY_PYTHON = "3.13.9"
@@ -63,6 +64,8 @@ def prepare(stage=lambda name: None):
              "assert comfy_kitchen.registry.is_available('cuda')"])
     if regen_enabled():
         install_regen(source, python, uv)
+    if vsr_enabled():
+        install_vsr(source, python, uv)
     stage("download")
     download_models(source / "models")
     private = root / "private"
@@ -83,48 +86,77 @@ def comfy_command(source, python, runtime):
             "--temp-directory", str(runtime / "temp"), "--user-directory", str(runtime / "user"),
             "--disable-metadata", "--disable-all-custom-nodes", "--offline",
             "--preview-method", "none", "--disable-auto-launch"]
+    pins = []
     if regen_enabled():
-        args += ["--lowvram", "--whitelist-custom-nodes"] + [p["name"] for p in manifest()["regen_nodes"]]
+        args += ["--lowvram"]
+        pins += manifest()["regen_nodes"]
+    if vsr_enabled():
+        pins += manifest()["vsr_nodes"]
+    if pins:
+        args += ["--whitelist-custom-nodes"] + [p["name"] for p in pins]
     return args
 
 
 def install_regen(source, python, uv):
     """Only called during the install stage on a dedicated regeneration worker."""
+    install_nodes(source, python, uv, "regen")
+
+
+def install_vsr(source, python, uv):
+    """Only called during the install stage when the VSR switch is on."""
+    install_nodes(source, python, uv, "vsr")
+    if command([python, "-c", VSR_VERSIONS_CHECK, Path(__file__).with_name("vsr-constraints.txt")]) != "satisfied":
+        raise RuntimeError("vsr installed dependency versions mismatch; expected vsr-constraints.txt pins")
+    kernels = command([python, "-c", "import torch; cc = torch.cuda.get_device_capability(); "
+                       "assert cc >= (7, 5), 'VSR int8 requires CC 7.5'; "
+                       "print('fast' if cc >= (8, 0) else 'exact')"])
+    if kernels not in ("fast", "exact"):
+        raise RuntimeError("vsr GPU capability unavailable")
+    os.environ["COMFY_VSR_KERNELS"] = kernels
+
+
+def install_nodes(source, python, uv, mode):
     for binary in ("ffmpeg", "ffprobe"):
         if shutil.which(binary) is None:
-            raise RuntimeError("regen requires local media tools")
-    checkout_root = source.parent / "regen-sources"
+            raise RuntimeError(mode + " requires local media tools")
+    checkout_root = source.parent / (mode + "-sources")
     checkout_root.mkdir(exist_ok=True)
     custom = source / "custom_nodes"
     custom.mkdir(exist_ok=True)
-    for pin in manifest()["regen_nodes"]:
+    for pin in manifest()[mode + "_nodes"]:
         checkout = checkout_root / pin["name"]
         if not checkout.exists():
             command(["git", "clone", "--filter=blob:none", "--no-checkout", pin["repository"], checkout])
             command(["git", "-C", checkout, "checkout", "--detach", pin["commit"]])
         if command(["git", "-C", checkout, "rev-parse", "HEAD"]) != pin["commit"]:
-            raise RuntimeError("regen node commit mismatch")
+            raise RuntimeError(mode + " node commit mismatch")
         command(["git", "-C", checkout, "diff", "--exit-code", "HEAD", "--"])
         package = checkout / pin["subdirectory"]
-        for asset in manifest().get("regen_node_assets", []):
+        for asset in manifest().get(mode + "_node_assets", []):
             if asset["node"] == pin["name"] and not valid_file(package / asset["path"], asset["size"], asset["sha256"]):
-                raise RuntimeError("regen node asset checksum mismatch")
+                raise RuntimeError(mode + " node asset checksum mismatch")
         if pin["requirements"]:
             requirements = package / pin["requirements"]
             # Check in the ComfyUI venv. Preserve every upstream version constraint;
             # do not reinstall av/safetensors already supplied by the pinned stack.
             missing = command([python, "-c", REQUIREMENTS_CHECK, requirements])
-            if missing != "satisfied":
+            constraints = ["-c", Path(__file__).with_name("runtime-constraints.txt")]
+            pinned = "satisfied"
+            if mode == "vsr":
+                vsr_constraints = Path(__file__).with_name("vsr-constraints.txt")
+                constraints += ["-c", vsr_constraints]
+                pinned = command([python, "-c", VSR_VERSIONS_CHECK, vsr_constraints])
+            if missing != "satisfied" or pinned != "satisfied":
                 command([uv, "pip", "install", "--python", python, "-r", requirements,
-                         "-c", Path(__file__).with_name("runtime-constraints.txt")])
+                         *constraints])
                 if command([python, "-c", REQUIREMENTS_CHECK, requirements]) != "satisfied":
-                    raise RuntimeError("regen node dependencies unavailable")
+                    raise RuntimeError(mode + " node dependencies unavailable")
         link = custom / pin["name"]
         if link.is_symlink():
             if link.resolve() != package.resolve():
-                raise RuntimeError("regen node path mismatch")
+                raise RuntimeError(mode + " node path mismatch")
         elif link.exists():
-            raise RuntimeError("regen node path occupied")
+            raise RuntimeError(mode + " node path occupied")
         else:
             link.symlink_to(package, target_is_directory=True)
 
@@ -147,6 +179,24 @@ for line in Path(sys.argv[1]).read_text().splitlines():
     except importlib.metadata.PackageNotFoundError:
         ok = False
 print('satisfied' if ok else 'missing')
+"""
+
+
+VSR_VERSIONS_CHECK = """
+import importlib.metadata
+from pathlib import Path
+import sys
+ok = True
+for line in Path(sys.argv[1]).read_text().splitlines():
+    line = line.split('#', 1)[0].strip()
+    if not line:
+        continue
+    name, expected = line.split('==')
+    try:
+        ok = (importlib.metadata.version(name) == expected) and ok
+    except importlib.metadata.PackageNotFoundError:
+        ok = False
+print('satisfied' if ok else 'mismatch')
 """
 
 

@@ -130,5 +130,40 @@
       "requirements": null
     }
   ],
-  "regen_node_assets": []
+  "regen_node_assets": [],
+  "vsr_nodes": [
+    {
+      "name": "ComfyUI-ReCaVSR",
+      "repository": "https://github.com/PedroMarinhoDev/ComfyUI-ReCaVSR.git",
+      "commit": "831769467c89b35ee47926189ac8189be63883d1",
+      "subdirectory": ".",
+      "requirements": "requirements.txt"
+    }
+  ],
+  "vsr_files": [
+    {
+      "repository": "PedroMarinhoDev/ReCaVSR-ComfyUI",
+      "revision": "2fffebd4413433ad4b8be7aec44b7fb60c897d6a",
+      "source_path": "recavsr/transformer_int8_convrot.safetensors",
+      "path": "recavsr/transformer_int8_convrot.safetensors",
+      "size": 6266935048,
+      "sha256": "70f77ac653a29dcab8cb8d5f5300acf27d9a3a45e9baf273fa4526fa43f66c9d"
+    },
+    {
+      "repository": "kopper/ReCaVSR",
+      "revision": "9c874580eedeea516f31ee1f7c562a311dbf9cf7",
+      "source_path": "flashdecoder.safetensors",
+      "path": "recavsr/flashdecoder.safetensors",
+      "size": 228723776,
+      "sha256": "f4feb3e7b0b65f98e15bb709a1ba28dfaada7c06bf7fc0ce4cdbcb58803034e8"
+    },
+    {
+      "repository": "kopper/ReCaVSR",
+      "revision": "9c874580eedeea516f31ee1f7c562a311dbf9cf7",
+      "source_path": "prompt.safetensors",
+      "path": "recavsr/prompt.safetensors",
+      "size": 4194392,
+      "sha256": "325ee3b5ec7d8bd43bc7ab186be5272dec0877c04e7c01a46fd0893260c9c6a5"
+    }
+  ]
 }

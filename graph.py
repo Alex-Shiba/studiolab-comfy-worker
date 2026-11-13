@@ -17,6 +17,11 @@ REF_LORA = PROFILES["ref8_768"].filename
 def build_graph(clip: ClipRequest, job_id: str, first=None, last=None, refs=(), video=None):
     if not ID_PATTERN.fullmatch(job_id):
         raise ValueError("invalid internal job id")
+    if clip.mode == "vsr":
+        from vsr_graph import build_vsr_graph
+        if first is not None or last is not None or refs:
+            raise ValueError("invalid internal vsr bindings")
+        return build_vsr_graph(clip, job_id, video)
     if clip.mode == "regen":
         if first is not None or last is not None or refs:
             raise ValueError("invalid internal regen bindings")

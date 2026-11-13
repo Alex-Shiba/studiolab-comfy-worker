@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 import threading
 
-from download import download_reference_models, download_lab_model, download_regen_models
+from download import download_reference_models, download_lab_model, download_regen_models, download_vsr_models
 from functools import partial
 
 
@@ -73,4 +73,11 @@ class LabModels:
 
 class RegenModels(ReferenceModels):
     def __init__(self, root, ready_file, downloader=download_regen_models):
+        super().__init__(root, ready_file, downloader)
+
+
+class VsrModels(ReferenceModels):
+    """Started by the first VSR job only, never by application readiness."""
+
+    def __init__(self, root, ready_file, downloader=download_vsr_models):
         super().__init__(root, ready_file, downloader)
